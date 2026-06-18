@@ -185,11 +185,11 @@ if (!DEMO_MODE) {
    ============================================================ */
 let DEMO_DB = {
   clients: [
-    { id: 1, name: "Wagdy's Clinic", sector: "طبي (أسنان)", division: "OctoDuction", status: "نشط", notes: "" },
-    { id: 2, name: "Denta Crest", sector: "طبي (أسنان)", division: "OctoVerse", status: "نشط", notes: "" },
-    { id: 3, name: "Dr. Yasmin Clinic", sector: "طبي (علاج طبيعي)", division: "OctoDuction", status: "نشط", notes: "" },
-    { id: 4, name: "Tante Restaurant", sector: "مطاعم وكافيهات", division: "OctoVerse", status: "في خطر", notes: "" },
-    { id: 5, name: "Society", sector: "عقارات (وسيط)", division: "OctoVerse", status: "نشط", notes: "" }
+    { id: 1, name: "Wagdy's Clinic", sector: "طبي (أسنان)", division: "OctoDuction", status: "نشط", notes: "", contract_amount: 12500, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 1 من الشهر", contract_duration: "3 شهور", contract_start_date: "2026-06-01" },
+    { id: 2, name: "Denta Crest", sector: "طبي (أسنان)", division: "OctoVerse", status: "نشط", notes: "", contract_amount: 15000, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 1 من الشهر", contract_duration: "3 شهور", contract_start_date: "2026-06-01" },
+    { id: 3, name: "Dr. Yasmin Clinic", sector: "طبي (علاج طبيعي)", division: "OctoDuction", status: "نشط", notes: "", contract_amount: 12500, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 1 من الشهر", contract_duration: "سنوي", contract_start_date: "2026-06-01" },
+    { id: 4, name: "Tante Restaurant", sector: "مطاعم وكافيهات", division: "OctoVerse", status: "في خطر", notes: "", contract_amount: 100000, contract_taxes: 14000, contract_extra_fees: 0, payment_due_day: "اليوم 15 من الشهر", contract_duration: "سنوي", contract_start_date: "2026-06-08" },
+    { id: 5, name: "Society", sector: "عقارات (وسيط)", division: "OctoVerse", status: "نشط", notes: "", contract_amount: 15000, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 15 من الشهر", contract_duration: "شهري", contract_start_date: "2026-02-15" }
   ],
   employees: [
     { id: 1, name: "أحمد", job_title: "ديزاينر مطاعم", department: "مطاعم", basic_salary: 5000, standard_daily_hours: 8, weekly_off: "الجمعة", hire_date: "2026-06-01", status: "نشط", notes: "" },
@@ -475,9 +475,14 @@ let DEMO_DB = {
   task_comments: [
     { id: 1, task_id: 1, role: "admin", author_name: "", comment: "مثال على شكل المناقشة - أي حد من الأدوار يقدر يكتب هنا قبل تغيير الحالة", created_at: "2026-06-15T10:00:00" }
   ],
+  payments: [
+    { id: 1, client_id: 1, billing_month: "2026-06", payment_date: "2026-06-01", amount: 7000, payment_method: "تحويل بنكي", notes: "دفعة جزئية أولى" },
+    { id: 2, client_id: 1, billing_month: "2026-06", payment_date: "2026-06-15", amount: 5500, payment_method: "تحويل بنكي", notes: "باقي المستحق" },
+    { id: 3, client_id: 2, billing_month: "2026-06", payment_date: "2026-06-01", amount: 15000, payment_method: "كاش", notes: "" }
+  ],
   payroll_runs: []
 };
-let nextDemoId = { clients: 6, employees: 4, strategies: 4, tasks: 256, attendance: 5, leaves: 2, overtime_log: 2, task_comments: 2, payroll_runs: 1 };
+let nextDemoId = { clients: 6, employees: 4, strategies: 4, tasks: 256, attendance: 5, leaves: 2, overtime_log: 2, task_comments: 2, payments: 4, payroll_runs: 1 };
 
 /* ============================================================
    طبقة الوصول للبيانات (Supabase أو وضع تجريبي) — باقي الكود
@@ -527,7 +532,7 @@ async function dbDelete(table, id) {
 /* ============================================================
    حالة عامة + كاش
    ============================================================ */
-const CACHE = { clients: [], employees: [], strategies: [], tasks: [], attendance: [], leaves: [], overtime_log: [], task_comments: [] };
+const CACHE = { clients: [], employees: [], strategies: [], tasks: [], attendance: [], leaves: [], overtime_log: [], task_comments: [], payments: [] };
 let selectedClientId = null;
 let selectedStrategyId = null;
 
@@ -598,7 +603,8 @@ const ALL_TABS = [
   { key: "tasks", label: "التاسكات", roles: ["admin", "team", "account_manager", "ops_manager", "client"] },
   { key: "employees", label: "الموظفين", roles: ["admin"] },
   { key: "attendance", label: "الحضور والإجازات", roles: ["admin"] },
-  { key: "payroll", label: "المرتبات", roles: ["admin"] }
+  { key: "payroll", label: "المرتبات", roles: ["admin"] },
+  { key: "payments", label: "المدفوعات", roles: ["admin"] }
 ];
 function tabsForRole() {
   return ALL_TABS.filter(t => t.roles.includes(CURRENT_ROLE));
@@ -622,6 +628,7 @@ async function switchTab(key) {
   else if (key === "employees") await renderEmployeesTab(main);
   else if (key === "attendance") await renderAttendanceTab(main);
   else if (key === "payroll") await renderPayrollTab(main);
+  else if (key === "payments") await renderPaymentsTab(main);
 }
 
 async function boot() {
@@ -632,7 +639,7 @@ async function boot() {
   if (DEMO_MODE) badges += '<span class="demo-badge">⚠ وضع تجريبي</span> ';
   badges += `<span class="demo-badge" style="background:var(--blue-bg);color:var(--blue-tx)">دخول: ${ROLE_LABELS[CURRENT_ROLE]}</span>`;
   document.getElementById("demo-badge-slot").innerHTML = badges;
-  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "task_comments"]);
+  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "task_comments", "payments"]);
   renderTabsBar();
   const myTabs = tabsForRole();
   switchTab(myTabs.length ? myTabs[0].key : "tasks");
@@ -707,6 +714,12 @@ const MODULES = {
       { key: "sector", label: "القطاع", type: "text" },
       { key: "division", label: "القسم المسؤول", type: "select", options: ["OctoDuction", "OctoVerse", "OctoLearn"] },
       { key: "status", label: "الحالة", type: "select", options: ["نشط", "منتهي", "في خطر"], default: "نشط" },
+      { key: "contract_amount", label: "قيمة العقد الشهرية (Agreement)", type: "number" },
+      { key: "contract_taxes", label: "الضرائب الشهرية", type: "number" },
+      { key: "contract_extra_fees", label: "رسوم إضافية شهرية (مثلاً إنتاج باليوم لو وجد)", type: "number" },
+      { key: "payment_due_day", label: "تاريخ استحقاق الدفع (مثلاً: اليوم 1 من الشهر)", type: "text" },
+      { key: "contract_duration", label: "مدة العقد", type: "select", options: ["شهري", "3 شهور", "6 شهور", "سنوي"] },
+      { key: "contract_start_date", label: "تاريخ بدء العقد", type: "date" },
       { key: "notes", label: "ملاحظات", type: "textarea" }
     ]
   },
@@ -734,6 +747,17 @@ const MODULES = {
       { key: "actual_hours", label: "الساعات الفعلية المنفقة", type: "number" },
       { key: "drive_link", label: "رابط الدرايف (الفولدر/الملف اللي هيشتغلوا عليه)", type: "text" },
       { key: "strategy_link", label: "رابط الاستراتيجية (مستند الخطة الكاملة)", type: "text" },
+      { key: "notes", label: "ملاحظات", type: "textarea" }
+    ]
+  },
+  payments: {
+    table: "payments", titleSingle: "دفعة",
+    fields: [
+      { key: "client_id", label: "العميل", type: "select-ref", refTable: "clients", refLabel: "name", required: true },
+      { key: "billing_month", label: "الشهر المستحق عليه", type: "month", required: true },
+      { key: "payment_date", label: "تاريخ الدفعة الفعلي", type: "date", required: true },
+      { key: "amount", label: "المبلغ المدفوع", type: "number", required: true },
+      { key: "payment_method", label: "طريقة الدفع", type: "select", options: ["كاش", "تحويل بنكي", "شيك", "فودافون كاش", "أخرى"] },
       { key: "notes", label: "ملاحظات", type: "textarea" }
     ]
   }
@@ -959,6 +983,7 @@ async function refreshAndRender(table) {
   else if (activeTab === "clients") await renderClientsTab(document.getElementById("main-content"));
   else if (activeTab === "tasks") await renderTasksTab(document.getElementById("main-content"));
   else if (activeTab === "dashboard") await renderDashboardTab(document.getElementById("main-content"));
+  else if (activeTab === "payments") await renderPaymentsTab(document.getElementById("main-content"));
 }
 
 /* ============================================================
@@ -1436,6 +1461,124 @@ function renderPayrollTable() {
       </tr>`;
     }).join("")}
     <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td></td><td><b>${fmtMoney(totalBasic)}</b></td><td></td><td></td><td></td><td></td><td><b>${fmtMoney(totalOT)}</b></td><td></td><td><b>${fmtMoney(totalDed)}</b></td><td></td><td></td><td><b style="font-size:15px">${fmtMoney(totalNet)}</b></td></tr>
+    </tbody></table>`;
+}
+
+/* ============================================================
+   تاب المدفوعات - مستحقات شهرية لكل عميل + سجل دفعات يدعم دفعات جزئية متعددة لنفس الشهر
+   ============================================================ */
+function contractMonthlyTotal(client) {
+  return (Number(client.contract_amount) || 0) + (Number(client.contract_taxes) || 0) + (Number(client.contract_extra_fees) || 0);
+}
+function computePaymentsForMonth(monthStr) {
+  return CACHE.clients.map(client => {
+    const due = contractMonthlyTotal(client);
+    const entries = CACHE.payments.filter(p => p.client_id === client.id && p.billing_month === monthStr);
+    const paid = entries.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const remaining = due - paid;
+    let status, statusColor;
+    if (due <= 0) { status = "مفيش عقد محدد"; statusColor = "grey"; }
+    else if (remaining <= 0) { status = "مدفوع بالكامل"; statusColor = "green"; }
+    else if (paid > 0) { status = "مدفوع جزئيًا"; statusColor = "yellow"; }
+    else { status = "لسه مفيش دفع"; statusColor = "red"; }
+    return { client, due, paid, remaining, status, statusColor, entriesCount: entries.length };
+  });
+}
+function last6Months() {
+  const months = [];
+  const now = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"));
+  }
+  return months;
+}
+async function renderPaymentsTab(main) {
+  const month = currentMonthStr();
+  main.innerHTML = `
+    <div class="page-head">
+      <div><h2>المدفوعات</h2><div class="desc">المستحق الشهري لكل عميل بيُحسب من بيانات العقد (تعدّليها من "تعديل" في تاب العملاء) - والمدفوع بيتجمع تلقائي من سجل الدفعات تحت، حتى لو على أكتر من دفعة جزئية</div></div>
+    </div>
+    <div class="filter-bar">
+      <label style="color:var(--grey);font-size:13px">الشهر:</label>
+      <input type="month" id="payments-month" value="${month}" onchange="renderPaymentsTable()">
+    </div>
+    <div class="card"><div class="table-wrap" id="payments-table"></div></div>
+
+    <div class="card">
+      <h3>نظرة على آخر 6 شهور</h3>
+      <div class="desc" style="margin-bottom:10px">لكل عميل: المستحق / المدفوع / المتبقي في كل شهر - زي شكل شيت المتابعة بتاعك بالظبط</div>
+      <div class="table-wrap" id="payments-overview"></div>
+    </div>
+
+    <div class="card">
+      <h3>سجل الدفعات <button class="btn small" onclick="openGenericModal('payments', null, ()=>refreshAndRender('payments'))">+ تسجيل دفعة</button></h3>
+      <div class="desc" style="margin-bottom:10px">كل دفعة فعلية بتتسجّل هنا كسطر مستقل - لو العميل دفع على مرتين أو تلاتة في نفس الشهر، سجّلي كل دفعة لوحدها وهيتجمعوا تلقائي فوق</div>
+      <div class="table-wrap" id="payments-log-table"></div>
+    </div>`;
+  renderPaymentsTable();
+  renderPaymentsOverview();
+  renderPaymentsLogTable();
+}
+function renderPaymentsTable() {
+  const month = document.getElementById("payments-month").value || currentMonthStr();
+  const rows = computePaymentsForMonth(month);
+  const el = document.getElementById("payments-table");
+  if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش عملاء</td></tr></tbody></table>`; return; }
+  let totalDue = 0, totalPaid = 0, totalRemaining = 0;
+  el.innerHTML = `<table>
+    <thead><tr><th>العميل</th><th>المستحق الشهري</th><th>المدفوع هذا الشهر</th><th>المتبقي</th><th>عدد الدفعات</th><th>الحالة</th></tr></thead>
+    <tbody>${rows.map(r => {
+      totalDue += r.due; totalPaid += r.paid; totalRemaining += r.remaining;
+      return `<tr>
+        <td><b>${escapeHtml(r.client.name)}</b></td>
+        <td>${fmtMoney(r.due)}</td>
+        <td style="color:var(--lime)">${fmtMoney(r.paid)}</td>
+        <td style="color:${r.remaining > 0 ? "var(--red-tx)" : "var(--grey)"}">${fmtMoney(r.remaining)}</td>
+        <td>${r.entriesCount}</td>
+        <td><span class="badge ${r.statusColor}">${r.status}</span></td>
+      </tr>`;
+    }).join("")}
+    <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td><b>${fmtMoney(totalDue)}</b></td><td><b style="color:var(--lime)">${fmtMoney(totalPaid)}</b></td><td><b style="color:var(--red-tx)">${fmtMoney(totalRemaining)}</b></td><td></td><td></td></tr>
+    </tbody></table>`;
+}
+function renderPaymentsOverview() {
+  const months = last6Months();
+  const el = document.getElementById("payments-overview");
+  if (!CACHE.clients.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش عملاء</td></tr></tbody></table>`; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>العميل</th>${months.map(m => `<th colspan="3">${m}</th>`).join("")}</tr>
+    <tr><th></th>${months.map(() => `<th style="font-size:10.5px">مستحق</th><th style="font-size:10.5px">مدفوع</th><th style="font-size:10.5px">متبقي</th>`).join("")}</tr></thead>
+    <tbody>${CACHE.clients.map(client => {
+      const due = contractMonthlyTotal(client);
+      return `<tr><td><b>${escapeHtml(client.name)}</b></td>${months.map(m => {
+        const paid = CACHE.payments.filter(p => p.client_id === client.id && p.billing_month === m).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const remaining = due - paid;
+        return `<td>${fmtMoney(due)}</td><td style="color:var(--lime)">${fmtMoney(paid)}</td><td style="color:${remaining > 0 ? "var(--red-tx)" : "var(--grey)"}">${fmtMoney(remaining)}</td>`;
+      }).join("")}</tr>`;
+    }).join("")}
+    </tbody></table>`;
+}
+function renderPaymentsLogTable() {
+  const rows = [...CACHE.payments].sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1));
+  const el = document.getElementById("payments-log-table");
+  if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش دفعات مسجّلة</td></tr></tbody></table>`; return; }
+  const clientName = id => (CACHE.clients.find(c => c.id === id) || {}).name || "-";
+  el.innerHTML = `<table>
+    <thead><tr><th>العميل</th><th>الشهر المستحق عليه</th><th>تاريخ الدفعة</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظات</th><th></th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr>
+        <td><b>${escapeHtml(clientName(r.client_id))}</b></td>
+        <td>${r.billing_month || "-"}</td>
+        <td>${r.payment_date || "-"}</td>
+        <td style="color:var(--lime)">${fmtMoney(r.amount)}</td>
+        <td>${escapeHtml(r.payment_method || "-")}</td>
+        <td style="white-space:normal;max-width:200px">${escapeHtml(r.notes || "")}</td>
+        <td>
+          <button class="btn small secondary" onclick='openGenericModal("payments", ${jsAttr(r)}, ()=>refreshAndRender("payments"))'>تعديل</button>
+          <button class="btn small danger" onclick="deleteRow('payments', ${r.id}, ()=>refreshAndRender('payments'))">حذف</button>
+        </td>
+      </tr>`).join("")}
     </tbody></table>`;
 }
 
