@@ -185,11 +185,11 @@ if (!DEMO_MODE) {
    ============================================================ */
 let DEMO_DB = {
   clients: [
-    { id: 1, name: "Wagdy's Clinic", sector: "طبي (أسنان)", division: "OctoDuction", status: "نشط", notes: "", contract_amount: 12500, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 1 من الشهر", contract_duration: "3 شهور", contract_start_date: "2026-06-01" },
-    { id: 2, name: "Denta Crest", sector: "طبي (أسنان)", division: "OctoVerse", status: "نشط", notes: "", contract_amount: 15000, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 1 من الشهر", contract_duration: "3 شهور", contract_start_date: "2026-06-01" },
-    { id: 3, name: "Dr. Yasmin Clinic", sector: "طبي (علاج طبيعي)", division: "OctoDuction", status: "نشط", notes: "", contract_amount: 12500, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 1 من الشهر", contract_duration: "سنوي", contract_start_date: "2026-06-01" },
-    { id: 4, name: "Tante Restaurant", sector: "مطاعم وكافيهات", division: "OctoVerse", status: "في خطر", notes: "", contract_amount: 100000, contract_taxes: 14000, contract_extra_fees: 0, payment_due_day: "اليوم 15 من الشهر", contract_duration: "سنوي", contract_start_date: "2026-06-08" },
-    { id: 5, name: "Society", sector: "عقارات (وسيط)", division: "OctoVerse", status: "نشط", notes: "", contract_amount: 15000, contract_taxes: 0, contract_extra_fees: 0, payment_due_day: "اليوم 15 من الشهر", contract_duration: "شهري", contract_start_date: "2026-02-15" }
+    { id: 1, name: "Wagdy's Clinic", sector: "طبي (أسنان)", division: "OctoDuction", status: "نشط", notes: "", contract_amount: 12500, has_contract: "نعم", tax_applicable: "لا", contract_taxes: 0, contract_extra_fees: 0, production_days_included: 0, production_day_rate: 8000, ad_spend_monthly: 0, ad_commission_percent: 0, payment_due_day: 1, contract_duration: "3 شهور", contract_start_date: "2026-06-01" },
+    { id: 2, name: "Denta Crest", sector: "طبي (أسنان)", division: "OctoVerse", status: "نشط", notes: "", contract_amount: 15000, has_contract: "نعم", tax_applicable: "لا", contract_taxes: 0, contract_extra_fees: 0, production_days_included: 0, production_day_rate: 0, ad_spend_monthly: 0, ad_commission_percent: 0, payment_due_day: 1, contract_duration: "3 شهور", contract_start_date: "2026-06-01" },
+    { id: 3, name: "Dr. Yasmin Clinic", sector: "طبي (علاج طبيعي)", division: "OctoDuction", status: "نشط", notes: "", contract_amount: 12500, has_contract: "نعم", tax_applicable: "لا", contract_taxes: 0, contract_extra_fees: 0, production_days_included: 0, production_day_rate: 0, ad_spend_monthly: 0, ad_commission_percent: 0, payment_due_day: 1, contract_duration: "سنوي", contract_start_date: "2026-06-01" },
+    { id: 4, name: "Tante Restaurant", sector: "مطاعم وكافيهات", division: "OctoVerse", status: "في خطر", notes: "", contract_amount: 100000, has_contract: "نعم", tax_applicable: "نعم", contract_taxes: 14000, contract_extra_fees: 0, production_days_included: 0, production_day_rate: 0, ad_spend_monthly: 0, ad_commission_percent: 0, payment_due_day: 15, contract_duration: "سنوي", contract_start_date: "2026-06-08" },
+    { id: 5, name: "Society", sector: "عقارات (وسيط)", division: "OctoVerse", status: "نشط", notes: "", contract_amount: 15000, has_contract: "نعم", tax_applicable: "لا", contract_taxes: 0, contract_extra_fees: 0, production_days_included: 0, production_day_rate: 0, ad_spend_monthly: 0, ad_commission_percent: 0, payment_due_day: 15, contract_duration: "شهري", contract_start_date: "2026-02-15" }
   ],
   employees: [
     { id: 1, name: "أحمد", job_title: "ديزاينر مطاعم", department: "مطاعم", basic_salary: 5000, standard_daily_hours: 8, weekly_off: "الجمعة", hire_date: "2026-06-01", status: "نشط", notes: "" },
@@ -714,10 +714,16 @@ const MODULES = {
       { key: "sector", label: "القطاع", type: "text" },
       { key: "division", label: "القسم المسؤول", type: "select", options: ["OctoDuction", "OctoVerse", "OctoLearn"] },
       { key: "status", label: "الحالة", type: "select", options: ["نشط", "منتهي", "في خطر"], default: "نشط" },
+      { key: "has_contract", label: "عنده عقد ثابت؟", type: "select", options: ["نعم", "لا"], default: "نعم" },
       { key: "contract_amount", label: "قيمة العقد الشهرية (Agreement)", type: "number" },
-      { key: "contract_taxes", label: "الضرائب الشهرية", type: "number" },
-      { key: "contract_extra_fees", label: "رسوم إضافية شهرية (مثلاً إنتاج باليوم لو وجد)", type: "number" },
-      { key: "payment_due_day", label: "تاريخ استحقاق الدفع (مثلاً: اليوم 1 من الشهر)", type: "text" },
+      { key: "tax_applicable", label: "بيتحاسب على ضرائب؟", type: "select", options: ["نعم", "لا"], default: "لا" },
+      { key: "contract_taxes", label: "قيمة الضريبة الشهرية (لو بيتحاسب)", type: "number" },
+      { key: "contract_extra_fees", label: "رسوم إضافية شهرية ثابتة", type: "number" },
+      { key: "production_days_included", label: "عدد أيام التصوير المتضمنة شهريًا (معلومة مرجعية)", type: "number" },
+      { key: "production_day_rate", label: "تكلفة يوم التصوير الواحد", type: "number" },
+      { key: "ad_spend_monthly", label: "ميزانية الإعلانات الشهرية اللي العميل بيدفعها", type: "number" },
+      { key: "ad_commission_percent", label: "نسبتنا (%) من إدارة الحملات الإعلانية", type: "number" },
+      { key: "payment_due_day", label: "يوم الاستحقاق في الشهر (مثلاً 1 أو 15)", type: "number" },
       { key: "contract_duration", label: "مدة العقد", type: "select", options: ["شهري", "3 شهور", "6 شهور", "سنوي"] },
       { key: "contract_start_date", label: "تاريخ بدء العقد", type: "date" },
       { key: "notes", label: "ملاحظات", type: "textarea" }
@@ -1030,6 +1036,7 @@ function renderStrategiesZone() {
   zone.innerHTML = `
     <div class="card">
       <h3>استراتيجيات ${escapeHtml(client.name)}
+        <button class="btn small secondary" onclick='openGenericModal("clients", ${jsAttr(client)}, ()=>refreshAndRender("clients"))'>✏️ تعديل بيانات العميل والعقد</button>
         <button class="btn small" onclick="openGenericModal('strategies', {client_id: ${client.id}}, ()=>refreshAndRender('strategies'))">+ استراتيجية جديدة</button>
       </h3>
       <div id="strategy-rows">${strategies.length ? "" : '<div class="desc">لسه مفيش استراتيجيات لهذا العميل</div>'}</div>
@@ -1300,6 +1307,8 @@ async function renderTasksTab(main) {
         <option value="">كل الحالات</option>
         ${TASK_STATUS_FLOW.map(s => `<option>${s}</option>`).join("")}
       </select>
+      <input type="month" id="flt-month" onchange="applyTaskFilters()" title="فلتر بالشهر (حسب تاريخ التاسك)">
+      <button class="btn small secondary" onclick="document.getElementById('flt-month').value='';applyTaskFilters()">إلغاء فلتر الشهر</button>
     </div>
     <div class="card"><div class="table-wrap" id="tasks-table">${tasksTableHTML(CACHE.tasks)}</div></div>`;
 }
@@ -1307,11 +1316,13 @@ function applyTaskFilters() {
   const clientVal = document.getElementById("flt-client").value;
   const assigneeVal = document.getElementById("flt-assignee").value;
   const statusVal = document.getElementById("flt-status").value;
+  const monthVal = document.getElementById("flt-month").value;
   let rows = [...CACHE.tasks];
   if (clientVal === "general") rows = rows.filter(t => !t.client_id);
   else if (clientVal) rows = rows.filter(t => String(t.client_id) === clientVal);
   if (assigneeVal) rows = rows.filter(t => String(t.assignee_id) === assigneeVal);
   if (statusVal) rows = rows.filter(t => t.status === statusVal);
+  if (monthVal) rows = rows.filter(t => inMonth(t.task_date, monthVal));
   document.getElementById("tasks-table").innerHTML = tasksTableHTML(rows);
 }
 
@@ -1468,7 +1479,29 @@ function renderPayrollTable() {
    تاب المدفوعات - مستحقات شهرية لكل عميل + سجل دفعات يدعم دفعات جزئية متعددة لنفس الشهر
    ============================================================ */
 function contractMonthlyTotal(client) {
-  return (Number(client.contract_amount) || 0) + (Number(client.contract_taxes) || 0) + (Number(client.contract_extra_fees) || 0);
+  const baseAmount = client.has_contract === "نعم" ? (Number(client.contract_amount) || 0) : 0;
+  const taxes = client.tax_applicable === "نعم" ? (Number(client.contract_taxes) || 0) : 0;
+  const extra = Number(client.contract_extra_fees) || 0;
+  const adCommission = (Number(client.ad_spend_monthly) || 0) * (Number(client.ad_commission_percent) || 0) / 100;
+  return baseAmount + taxes + extra + adCommission;
+}
+function contractBreakdownText(client) {
+  const parts = [];
+  if (client.has_contract === "نعم" && Number(client.contract_amount)) parts.push(`عقد ${fmtMoney(client.contract_amount)}`);
+  if (client.tax_applicable === "نعم" && Number(client.contract_taxes)) parts.push(`ضريبة ${fmtMoney(client.contract_taxes)}`);
+  if (Number(client.contract_extra_fees)) parts.push(`رسوم إضافية ${fmtMoney(client.contract_extra_fees)}`);
+  const adCommission = (Number(client.ad_spend_monthly) || 0) * (Number(client.ad_commission_percent) || 0) / 100;
+  if (adCommission) parts.push(`عمولة إعلانات ${fmtMoney(adCommission)} (${client.ad_commission_percent}% من ${fmtMoney(client.ad_spend_monthly)})`);
+  return parts.join(" + ");
+}
+function isPaymentLate(client, monthStr, remaining) {
+  if (remaining <= 0) return false;
+  const dueDay = Number(client.payment_due_day);
+  if (!dueDay) return false;
+  const nowMonth = currentMonthStr();
+  if (monthStr < nowMonth) return true;
+  if (monthStr > nowMonth) return false;
+  return new Date().getDate() > dueDay;
 }
 function computePaymentsForMonth(monthStr) {
   return CACHE.clients.map(client => {
@@ -1477,8 +1510,9 @@ function computePaymentsForMonth(monthStr) {
     const paid = entries.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const remaining = due - paid;
     let status, statusColor;
-    if (due <= 0) { status = "مفيش عقد محدد"; statusColor = "grey"; }
+    if (due <= 0) { status = "لا يوجد مستحق"; statusColor = "grey"; }
     else if (remaining <= 0) { status = "مدفوع بالكامل"; statusColor = "green"; }
+    else if (isPaymentLate(client, monthStr, remaining)) { status = "متأخر ⚠"; statusColor = "red"; }
     else if (paid > 0) { status = "مدفوع جزئيًا"; statusColor = "yellow"; }
     else { status = "لسه مفيش دفع"; statusColor = "red"; }
     return { client, due, paid, remaining, status, statusColor, entriesCount: entries.length };
@@ -1527,19 +1561,20 @@ function renderPaymentsTable() {
   if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش عملاء</td></tr></tbody></table>`; return; }
   let totalDue = 0, totalPaid = 0, totalRemaining = 0;
   el.innerHTML = `<table>
-    <thead><tr><th>العميل</th><th>المستحق الشهري</th><th>المدفوع هذا الشهر</th><th>المتبقي</th><th>عدد الدفعات</th><th>الحالة</th></tr></thead>
+    <thead><tr><th>العميل</th><th>يوم الاستحقاق</th><th>المستحق الشهري</th><th>المدفوع هذا الشهر</th><th>المتبقي</th><th>عدد الدفعات</th><th>الحالة</th></tr></thead>
     <tbody>${rows.map(r => {
       totalDue += r.due; totalPaid += r.paid; totalRemaining += r.remaining;
       return `<tr>
-        <td><b>${escapeHtml(r.client.name)}</b></td>
-        <td>${fmtMoney(r.due)}</td>
+        <td><b>${escapeHtml(r.client.name)}</b>${r.client.has_contract !== "نعم" ? ' <span class="badge grey">بدون عقد ثابت</span>' : ""}</td>
+        <td>${r.client.payment_due_day ? `اليوم ${r.client.payment_due_day}` : "-"}</td>
+        <td>${fmtMoney(r.due)}${contractBreakdownText(r.client) ? `<div style="font-size:10.5px;color:var(--grey);margin-top:2px">${escapeHtml(contractBreakdownText(r.client))}</div>` : ""}</td>
         <td style="color:var(--lime)">${fmtMoney(r.paid)}</td>
         <td style="color:${r.remaining > 0 ? "var(--red-tx)" : "var(--grey)"}">${fmtMoney(r.remaining)}</td>
         <td>${r.entriesCount}</td>
         <td><span class="badge ${r.statusColor}">${r.status}</span></td>
       </tr>`;
     }).join("")}
-    <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td><b>${fmtMoney(totalDue)}</b></td><td><b style="color:var(--lime)">${fmtMoney(totalPaid)}</b></td><td><b style="color:var(--red-tx)">${fmtMoney(totalRemaining)}</b></td><td></td><td></td></tr>
+    <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td></td><td><b>${fmtMoney(totalDue)}</b></td><td><b style="color:var(--lime)">${fmtMoney(totalPaid)}</b></td><td><b style="color:var(--red-tx)">${fmtMoney(totalRemaining)}</b></td><td></td><td></td></tr>
     </tbody></table>`;
 }
 function renderPaymentsOverview() {
