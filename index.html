@@ -1541,11 +1541,10 @@ function computePaymentsForMonth(monthStr) {
   });
 }
 function last6Months() {
+  const year = new Date().getFullYear();
   const months = [];
-  const now = new Date();
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"));
+  for (let m = 6; m <= 12; m++) {
+    months.push(year + "-" + String(m).padStart(2, "0"));
   }
   return months;
 }
@@ -1562,7 +1561,7 @@ async function renderPaymentsTab(main) {
     <div class="card"><div class="table-wrap" id="payments-table"></div></div>
 
     <div class="card">
-      <h3>نظرة على آخر 6 شهور</h3>
+      <h3>نظرة على شهور يونيو - ديسمبر</h3>
       <div class="desc" style="margin-bottom:10px">لكل عميل: المستحق / المدفوع / المتبقي في كل شهر - زي شكل شيت المتابعة بتاعك بالظبط</div>
       <div class="table-wrap" id="payments-overview"></div>
     </div>
@@ -1678,7 +1677,7 @@ async function renderExpensesTab(main) {
     </div>
 
     <div class="card">
-      <h3>نظرة على آخر 6 شهور</h3>
+      <h3>نظرة على شهور يونيو - ديسمبر</h3>
       <div class="desc" style="margin-bottom:10px">الإيرادات والمصاريف وصافي الربح شهر بشهر</div>
       <div class="table-wrap" id="expenses-overview"></div>
     </div>
