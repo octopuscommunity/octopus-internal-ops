@@ -1105,7 +1105,7 @@ function renderStrategyTasksZone() {
    ============================================================ */
 function tasksTableHTML(tasks) {
   if (!tasks.length) return `<table><tbody><tr class="empty-row"><td>لسه مفيش بنود</td></tr></tbody></table>`;
-  const sorted = [...tasks].sort((a, b) => (a.task_date < b.task_date ? 1 : -1));
+  const sorted = [...tasks].sort((a, b) => (a.task_date > b.task_date ? 1 : -1));
   return `<table>
     <thead><tr><th>التاسك</th><th>العميل</th><th>المسؤول</th><th>التاريخ</th><th>التسليم</th><th>مقدّر</th><th>فعلي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>${sorted.map(t => {
@@ -1366,13 +1366,16 @@ function inMonth(dateStr, monthStr) {
    وإضافي يوم الإجازة الأسبوعية نفسه (×2)
    ============================================================ */
 const ARABIC_WEEKDAYS = ["الأحد", "الإتنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+function normalizeArabic(s) {
+  return (s || "").replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي");
+}
 function weekdayNameOf(dateStr) {
   const d = new Date(dateStr + "T00:00:00");
   return ARABIC_WEEKDAYS[d.getDay()];
 }
 function employeeOffDayNames(emp) {
-  const txt = emp.weekly_off || "";
-  return ARABIC_WEEKDAYS.filter(day => txt.includes(day));
+  const txt = normalizeArabic(emp.weekly_off || "");
+  return ARABIC_WEEKDAYS.filter(day => txt.includes(normalizeArabic(day)));
 }
 function isEmployeeOffDate(emp, dateStr) {
   const offDays = employeeOffDayNames(emp);
@@ -1668,6 +1671,7 @@ async function renderExpensesTab(main) {
       <label style="color:var(--grey);font-size:13px">الشهر:</label>
       <input type="month" id="expenses-month" value="${month}" onchange="renderExpensesTable()">
       <button class="btn small secondary" onclick="copyRecurringExpenses()">📋 نسخ المصاريف المتكررة من الشهر اللي فات</button>
+      <button class="btn small secondary" onclick="openInstallmentModal()">🧾 تسجيل مصروف بالتقسيط</button>
     </div>
     <div class="kpi-grid" id="expenses-kpis"></div>
 
@@ -1772,6 +1776,60 @@ async function copyRecurringExpenses() {
   await refreshCache(["expenses"]);
   renderExpensesTable(); renderExpensesOverview(); renderExpensesLogTable();
   showToast(copied ? `تم نسخ ${copied} مصروف متكرر من ${prev}` : "كل المصاريف المتكررة كانت منسوخة بالفعل");
+}
+function addMonthsToStr(monthStr, n) {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+function openInstallmentModal() {
+  const box = document.getElementById("modal-box");
+  const month = document.getElementById("expenses-month")?.value || currentMonthStr();
+  box.innerHTML = `
+    <h3>تسجيل مصروف بالتقسيط</h3>
+    <div class="desc" style="margin-bottom:10px">هتدخلي القيمة الإجمالية وعدد الدفعات، والنظام يقسمها تلقائي على شهور متتالية كمصاريف منفصلة - زي شراء كاميرا أو جهاز على 3 أو 4 دفعات</div>
+    <div class="field"><label>التصنيف *</label>
+      <select data-field="category">${MODULES.expenses.fields[0].options.map(o => `<option>${escapeHtml(o)}</option>`).join("")}</select>
+    </div>
+    <div class="field"><label>وصف المصروف (هيتضاف له "دفعة X من Y" تلقائي) *</label><input data-field="description" type="text" placeholder="مثلاً: كاميرا سوني A7IV"></div>
+    <div class="field"><label>القيمة الإجمالية *</label><input data-field="total_amount" type="number"></div>
+    <div class="field"><label>عدد الدفعات *</label><input data-field="installments_count" type="number" min="2" value="3"></div>
+    <div class="field"><label>الشهر اللي تبدأ منه أول دفعة *</label><input data-field="start_month" type="month" value="${month}"></div>
+    <div class="field"><label>طريقة الدفع</label>
+      <select data-field="payment_method"><option>تحويل بنكي</option><option>بطاقة</option><option>كاش</option><option>شيك</option><option>أخرى</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">إلغاء</button>
+      <button class="btn" id="modal-save-btn">تقسيم وحفظ</button>
+    </div>`;
+  document.getElementById("modal-save-btn").onclick = async () => {
+    const category = box.querySelector('[data-field="category"]').value;
+    const description = box.querySelector('[data-field="description"]').value.trim();
+    const total = Number(box.querySelector('[data-field="total_amount"]').value);
+    const count = Math.max(2, parseInt(box.querySelector('[data-field="installments_count"]').value) || 0);
+    const startMonth = box.querySelector('[data-field="start_month"]').value;
+    const paymentMethod = box.querySelector('[data-field="payment_method"]').value;
+    if (!description || !total || !count || !startMonth) { showToast("فيه حقول مطلوبة لسه فاضية"); return; }
+    const baseAmount = Math.floor((total / count) * 100) / 100;
+    let remaining = total;
+    for (let i = 0; i < count; i++) {
+      const isLast = i === count - 1;
+      const amount = isLast ? Math.round(remaining * 100) / 100 : baseAmount;
+      remaining -= amount;
+      const billingMonth = addMonthsToStr(startMonth, i);
+      await dbInsert("expenses", {
+        category, description: `${description} (دفعة ${i + 1} من ${count})`, amount,
+        billing_month: billingMonth, expense_date: billingMonth + "-01",
+        is_recurring: "لا", payment_method: paymentMethod,
+        notes: `جزء من تقسيط: إجمالي ${fmtMoney(total)} على ${count} دفعات بادئة ${startMonth}`
+      });
+    }
+    closeModal();
+    await refreshCache(["expenses"]);
+    if (document.getElementById("expenses-kpis")) { renderExpensesTable(); renderExpensesOverview(); renderExpensesLogTable(); }
+    showToast(`تم تسجيل ${count} دفعات بنجاح ✓`);
+  };
+  document.getElementById("modal-overlay").style.display = "flex";
 }
 
 /* ============================================================
