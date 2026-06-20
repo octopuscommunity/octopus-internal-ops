@@ -486,9 +486,12 @@ let DEMO_DB = {
     { id: 3, category: "فريلانسرز", description: "مونتاج فريلانسر - حلقة إرث 1", amount: 1500, billing_month: "2026-06", expense_date: "2026-06-10", is_recurring: "لا", payment_method: "تحويل بنكي", notes: "" },
     { id: 4, category: "تسويق الوكالة", description: "حملة إعلانية لصفحة Octopus Community نفسها", amount: 1000, billing_month: "2026-06", expense_date: "2026-06-12", is_recurring: "لا", payment_method: "بطاقة", notes: "" }
   ],
+  extra_revenue: [
+    { id: 1, client_id: 1, billing_month: "2026-06", revenue_date: "2026-06-14", category: "يوم تصوير إضافي", description: "يوم تصوير زيادة عن المتفق - حلقة إرث 2", amount: 8000, payment_method: "تحويل بنكي", notes: "" }
+  ],
   payroll_runs: []
 };
-let nextDemoId = { clients: 6, employees: 4, strategies: 4, tasks: 256, attendance: 5, leaves: 2, overtime_log: 2, task_comments: 2, payments: 4, expenses: 5, payroll_runs: 1 };
+let nextDemoId = { clients: 6, employees: 4, strategies: 4, tasks: 256, attendance: 5, leaves: 2, overtime_log: 2, task_comments: 2, payments: 4, expenses: 5, extra_revenue: 2, payroll_runs: 1 };
 
 /* ============================================================
    طبقة الوصول للبيانات (Supabase أو وضع تجريبي) — باقي الكود
@@ -538,7 +541,7 @@ async function dbDelete(table, id) {
 /* ============================================================
    حالة عامة + كاش
    ============================================================ */
-const CACHE = { clients: [], employees: [], strategies: [], tasks: [], attendance: [], leaves: [], overtime_log: [], task_comments: [], payments: [], expenses: [] };
+const CACHE = { clients: [], employees: [], strategies: [], tasks: [], attendance: [], leaves: [], overtime_log: [], task_comments: [], payments: [], expenses: [], extra_revenue: [] };
 let selectedClientId = null;
 let selectedStrategyId = null;
 
@@ -649,7 +652,7 @@ async function boot() {
   if (DEMO_MODE) badges += '<span class="demo-badge">⚠ وضع تجريبي</span> ';
   badges += `<span class="demo-badge" style="background:var(--blue-bg);color:var(--blue-tx)">دخول: ${ROLE_LABELS[CURRENT_ROLE]}</span>`;
   document.getElementById("demo-badge-slot").innerHTML = badges;
-  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "task_comments", "payments", "expenses"]);
+  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "task_comments", "payments", "expenses", "extra_revenue"]);
   renderTabsBar();
   const myTabs = tabsForRole();
   switchTab(myTabs.length ? myTabs[0].key : "tasks");
@@ -780,13 +783,26 @@ const MODULES = {
   expenses: {
     table: "expenses", titleSingle: "مصروف",
     fields: [
-      { key: "category", label: "التصنيف", type: "select", options: ["رواتب وأجور", "إيجار ومكتب", "اشتراكات وأدوات", "فريلانسرز", "تسويق الوكالة", "إنتاج (تصوير/مونتاج خارجي)", "مصاريف إدارية", "ضرائب ورسوم", "أخرى"], required: true },
+      { key: "category", label: "التصنيف", type: "select", options: ["رواتب وأجور", "إيجار ومكتب", "اشتراكات وأدوات", "فريلانسرز", "تسويق الوكالة", "إنتاج (تصوير/مونتاج خارجي)", "أصول ثابتة", "تراخيص", "مصاريف إدارية", "ضرائب ورسوم", "أخرى"], required: true },
       { key: "description", label: "وصف المصروف", type: "text", required: true },
       { key: "amount", label: "المبلغ", type: "number", required: true },
       { key: "billing_month", label: "الشهر المحسوب عليه", type: "month", required: true },
       { key: "expense_date", label: "تاريخ الدفع الفعلي", type: "date", required: true },
       { key: "is_recurring", label: "متكرر شهريًا؟ (تقدري تنسخيه للشهر اللي بعده بزرار واحد)", type: "select", options: ["نعم", "لا"], default: "لا" },
       { key: "payment_method", label: "طريقة الدفع", type: "select", options: ["كاش", "تحويل بنكي", "شيك", "بطاقة", "أخرى"] },
+      { key: "notes", label: "ملاحظات", type: "textarea" }
+    ]
+  },
+  extra_revenue: {
+    table: "extra_revenue", titleSingle: "إيراد إضافي",
+    fields: [
+      { key: "client_id", label: "العميل", type: "select-ref", refTable: "clients", refLabel: "name", required: true },
+      { key: "category", label: "نوع الإيراد", type: "select", options: ["يوم تصوير إضافي", "فعالية / إيفنت", "خدمة إضافية أخرى"], required: true },
+      { key: "description", label: "الوصف", type: "text", required: true },
+      { key: "amount", label: "المبلغ", type: "number", required: true },
+      { key: "billing_month", label: "الشهر المحسوب عليه", type: "month", required: true },
+      { key: "revenue_date", label: "تاريخ الاستلام الفعلي", type: "date", required: true },
+      { key: "payment_method", label: "طريقة الدفع", type: "select", options: ["كاش", "تحويل بنكي", "شيك", "فودافون كاش", "أخرى"] },
       { key: "notes", label: "ملاحظات", type: "textarea" }
     ]
   }
@@ -1630,7 +1646,7 @@ async function renderPaymentsTab(main) {
     </div>
     <div class="filter-bar">
       <label style="color:var(--grey);font-size:13px">الشهر:</label>
-      <input type="month" id="payments-month" value="${month}" onchange="renderPaymentsTable()">
+      <input type="month" id="payments-month" value="${month}" onchange="renderPaymentsTable();renderExtraRevenueTable()">
     </div>
     <div class="card"><div class="table-wrap" id="payments-table"></div></div>
 
@@ -1641,12 +1657,20 @@ async function renderPaymentsTab(main) {
     </div>
 
     <div class="card">
+      <h3>إيرادات إضافية خارج التعاقد <button class="btn small" onclick="openGenericModal('extra_revenue', null, ()=>refreshAndRender('payments'))">+ إيراد إضافي جديد</button></h3>
+      <div class="desc" style="margin-bottom:10px">أي فلوس من عميل بره القيمة الشهرية الثابتة - يوم تصوير زيادة، إيفنت، أو خدمة إضافية. دي بتتجمع مع الإيرادات الأساسية في حساب صافي الربح، بس متتحسبش جزء من "المستحق الشهري" بتاع العقد فوق</div>
+      <div id="extra-revenue-kpi" style="margin-bottom:14px"></div>
+      <div class="table-wrap" id="extra-revenue-table"></div>
+    </div>
+
+    <div class="card">
       <h3>سجل الدفعات <button class="btn small" onclick="openGenericModal('payments', null, ()=>refreshAndRender('payments'))">+ تسجيل دفعة</button></h3>
       <div class="desc" style="margin-bottom:10px">كل دفعة فعلية بتتسجّل هنا كسطر مستقل - لو العميل دفع على مرتين أو تلاتة في نفس الشهر، سجّلي كل دفعة لوحدها وهيتجمعوا تلقائي فوق</div>
       <div class="table-wrap" id="payments-log-table"></div>
     </div>`;
   renderPaymentsTable();
   renderPaymentsOverview();
+  renderExtraRevenueTable();
   renderPaymentsLogTable();
 }
 function renderPaymentsTable() {
@@ -1689,6 +1713,34 @@ function renderPaymentsOverview() {
     }).join("")}
     </tbody></table>`;
 }
+function renderExtraRevenueTable() {
+  const month = document.getElementById("payments-month")?.value || currentMonthStr();
+  const clientName = id => (CACHE.clients.find(c => c.id === id) || {}).name || "-";
+  const monthRows = CACHE.extra_revenue.filter(e => e.billing_month === month);
+  const monthTotal = monthRows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  document.getElementById("extra-revenue-kpi").innerHTML =
+    `<div class="kpi-card" style="display:inline-block;min-width:220px"><div class="lbl">إجمالي الإيرادات الإضافية (${month})</div><div class="val" style="color:var(--lime)">${fmtMoney(monthTotal)}</div></div>`;
+  const rows = [...CACHE.extra_revenue].sort((a, b) => (a.revenue_date < b.revenue_date ? 1 : -1));
+  const el = document.getElementById("extra-revenue-table");
+  if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش إيرادات إضافية مسجّلة</td></tr></tbody></table>`; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>العميل</th><th>النوع</th><th>الوصف</th><th>الشهر</th><th>تاريخ الاستلام</th><th>المبلغ</th><th>طريقة الدفع</th><th></th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr>
+        <td><b>${escapeHtml(clientName(r.client_id))}</b></td>
+        <td>${escapeHtml(r.category || "-")}</td>
+        <td>${escapeHtml(r.description)}${r.notes ? `<div style="font-size:11px;color:var(--grey)">${escapeHtml(r.notes)}</div>` : ""}</td>
+        <td>${r.billing_month || "-"}</td>
+        <td>${r.revenue_date || "-"}</td>
+        <td style="color:var(--lime)">${fmtMoney(r.amount)}</td>
+        <td>${escapeHtml(r.payment_method || "-")}</td>
+        <td>
+          <button class="btn small secondary" onclick='openGenericModal("extra_revenue", ${jsAttr(r)}, ()=>refreshAndRender("payments"))'>تعديل</button>
+          <button class="btn small danger" onclick="deleteRow('extra_revenue', ${r.id}, ()=>refreshAndRender('payments'))">حذف</button>
+        </td>
+      </tr>`).join("")}
+    </tbody></table>`;
+}
 function renderPaymentsLogTable() {
   const rows = [...CACHE.payments].sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1));
   const el = document.getElementById("payments-log-table");
@@ -1721,7 +1773,9 @@ function prevMonthStr(monthStr) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
 }
 function totalRevenueForMonth(monthStr) {
-  return CACHE.payments.filter(p => p.billing_month === monthStr).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const fromContracts = CACHE.payments.filter(p => p.billing_month === monthStr).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const fromExtra = CACHE.extra_revenue.filter(e => e.billing_month === monthStr).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  return fromContracts + fromExtra;
 }
 function totalPayrollForMonth(monthStr) {
   try { return computePayrollForMonth(monthStr).reduce((s, r) => s + r.netPay, 0); } catch (e) { return 0; }
@@ -1767,7 +1821,9 @@ async function renderExpensesTab(main) {
 }
 function renderExpensesTable() {
   const month = document.getElementById("expenses-month").value || currentMonthStr();
-  const revenue = totalRevenueForMonth(month);
+  const contractRevenue = CACHE.payments.filter(p => p.billing_month === month).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const extraRevenue = CACHE.extra_revenue.filter(e => e.billing_month === month).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const revenue = contractRevenue + extraRevenue;
   const payroll = totalPayrollForMonth(month);
   const manual = manualExpensesForMonth(month);
   const manualTotal = manual.reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -1775,7 +1831,7 @@ function renderExpensesTable() {
   const net = revenue - totalExp;
 
   document.getElementById("expenses-kpis").innerHTML = `
-    <div class="kpi-card"><div class="lbl">الإيرادات (${month})</div><div class="val" style="color:var(--lime)">${fmtMoney(revenue)}</div></div>
+    <div class="kpi-card"><div class="lbl">الإيرادات (${month})</div><div class="val" style="color:var(--lime)">${fmtMoney(revenue)}</div><div style="font-size:11px;color:var(--grey);margin-top:4px">منها تعاقد: ${fmtMoney(contractRevenue)} + إضافي: ${fmtMoney(extraRevenue)}</div></div>
     <div class="kpi-card"><div class="lbl">إجمالي المصاريف</div><div class="val" style="color:var(--red-tx)">${fmtMoney(totalExp)}</div><div style="font-size:11px;color:var(--grey);margin-top:4px">منها مرتبات: ${fmtMoney(payroll)} + مصاريف يدوية: ${fmtMoney(manualTotal)}</div></div>
     <div class="kpi-card"><div class="lbl">صافي الربح</div><div class="val" style="color:${net >= 0 ? "var(--lime)" : "var(--red-tx)"}">${fmtMoney(net)}</div></div>`;
 
