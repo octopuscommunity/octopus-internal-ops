@@ -610,6 +610,7 @@ const ALL_TABS = [
   { key: "employees", label: "الموظفين", roles: ["admin"] },
   { key: "attendance", label: "الحضور والإجازات", roles: ["admin"] },
   { key: "payroll", label: "المرتبات", roles: ["admin"] },
+  { key: "kpis", label: "تقييم الموظفين", roles: ["admin"] },
   { key: "payments", label: "المدفوعات", roles: ["admin"] },
   { key: "expenses", label: "المصاريف", roles: ["admin"] }
 ];
@@ -635,6 +636,7 @@ async function switchTab(key) {
   else if (key === "employees") await renderEmployeesTab(main);
   else if (key === "attendance") await renderAttendanceTab(main);
   else if (key === "payroll") await renderPayrollTab(main);
+  else if (key === "kpis") await renderKpisTab(main);
   else if (key === "payments") await renderPaymentsTab(main);
   else if (key === "expenses") await renderExpensesTab(main);
 }
@@ -841,6 +843,12 @@ function openGenericModal(moduleKey, existingRow, onSaved, fieldOverrides) {
       row[f.key] = val;
     });
     if (!valid) { showToast("فيه حقول مطلوبة لسه فاضية"); return; }
+    if (moduleKey === "tasks") {
+      const wasCompleted = isEdit && existingRow.status === "مكتمل";
+      const isNowCompleted = row.status === "مكتمل";
+      if (isNowCompleted && !wasCompleted) row.completed_at = new Date().toISOString();
+      else if (!isNowCompleted && wasCompleted) row.completed_at = null;
+    }
     try {
       if (isEdit) await dbUpdate(mod.table, existingRow.id, row);
       else await dbInsert(mod.table, row);
@@ -1279,7 +1287,9 @@ function openTaskModal(task, mode) {
   } else if (mode === "approve") {
     const flow = APPROVAL_FLOW[CURRENT_ROLE];
     document.getElementById("tm-approve").onclick = async () => {
-      await dbUpdate("tasks", task.id, { status: flow.to });
+      const updates = { status: flow.to };
+      if (flow.to === "مكتمل") updates.completed_at = new Date().toISOString();
+      await dbUpdate("tasks", task.id, updates);
       closeModal();
       showToast(flow.to === "مكتمل" ? "تم إقفال التاسك ✓" : "تم الاعتماد، انتقل للمرحلة التالية ✓");
       await refreshAndRender("tasks");
@@ -1497,6 +1507,67 @@ function renderPayrollTable() {
       </tr>`;
     }).join("")}
     <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td></td><td><b>${fmtMoney(totalBasic)}</b></td><td></td><td></td><td></td><td></td><td><b>${fmtMoney(totalOT)}</b></td><td></td><td><b>${fmtMoney(totalDed)}</b></td><td></td><td></td><td><b style="font-size:15px">${fmtMoney(totalNet)}</b></td></tr>
+    </tbody></table>`;
+}
+
+/* ============================================================
+   تاب تقييم الموظفين - KPIs شهرية: % في الميعاد، عدد المنجز، كفاءة الوقت، الحضور والانضباط
+   ============================================================ */
+function computeEmployeeKPIs(monthStr) {
+  return CACHE.employees.map(emp => {
+    const completedThisMonth = CACHE.tasks.filter(t =>
+      t.assignee_id === emp.id && t.status === "مكتمل" && t.completed_at && inMonth(t.completed_at.slice(0, 10), monthStr)
+    );
+    const completedCount = completedThisMonth.length;
+    const withDue = completedThisMonth.filter(t => t.due_date);
+    const onTimeCount = withDue.filter(t => t.completed_at.slice(0, 10) <= t.due_date).length;
+    const onTimePct = withDue.length ? Math.round((onTimeCount / withDue.length) * 100) : null;
+    const totalEstimated = completedThisMonth.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
+    const totalActual = completedThisMonth.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
+    const efficiencyPct = totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : null;
+    const monthAttendance = CACHE.attendance.filter(a => a.employee_id === emp.id && inMonth(a.work_date, monthStr));
+    const absences = monthAttendance.filter(a => a.status === "غياب").length;
+    const lateDays = monthAttendance.filter(a => a.status === "متأخر").length;
+
+    let overall, overallColor;
+    if (completedCount === 0 && absences === 0 && lateDays === 0) { overall = "لا توجد بيانات كافية"; overallColor = "grey"; }
+    else if ((onTimePct !== null && onTimePct < 50) || absences >= 3) { overall = "يحتاج انتباه"; overallColor = "red"; }
+    else if ((onTimePct === null || onTimePct >= 80) && (efficiencyPct === null || (efficiencyPct >= 70 && efficiencyPct <= 130)) && absences === 0 && lateDays <= 1) { overall = "ممتاز"; overallColor = "green"; }
+    else { overall = "جيد"; overallColor = "yellow"; }
+
+    return { emp, completedCount, onTimePct, efficiencyPct, absences, lateDays, overall, overallColor };
+  });
+}
+async function renderKpisTab(main) {
+  const month = currentMonthStr();
+  main.innerHTML = `
+    <div class="page-head">
+      <div><h2>تقييم الموظفين</h2><div class="desc">% في الميعاد بيُحسب من تاريخ إقفال التاسك الفعلي (completed_at) مقابل تاريخ التسليم - مش تخمين. كفاءة الوقت = الساعات الفعلية ÷ المقدّرة للتاسكات المكتملة. التقييم العام مؤشر سريع بس مبني على قواعد ثابتة، استخدميه كنقطة بداية للمراجعة مش كحكم نهائي</div></div>
+    </div>
+    <div class="filter-bar">
+      <label style="color:var(--grey);font-size:13px">الشهر:</label>
+      <input type="month" id="kpis-month" value="${month}" onchange="renderKpisTable()">
+    </div>
+    <div class="card"><div class="table-wrap" id="kpis-table"></div></div>`;
+  renderKpisTable();
+}
+function renderKpisTable() {
+  const month = document.getElementById("kpis-month").value || currentMonthStr();
+  const rows = computeEmployeeKPIs(month);
+  const el = document.getElementById("kpis-table");
+  if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش موظفين</td></tr></tbody></table>`; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>الموظف</th><th>تاسكات منجزة هذا الشهر</th><th>% في الميعاد</th><th>كفاءة الوقت (فعلي/مقدّر)</th><th>أيام غياب</th><th>أيام تأخير</th><th>التقييم العام</th></tr></thead>
+    <tbody>${rows.map(r => `
+      <tr>
+        <td><b>${escapeHtml(r.emp.name)}</b></td>
+        <td>${r.completedCount}</td>
+        <td>${r.onTimePct === null ? "-" : `<span style="color:${r.onTimePct >= 80 ? "var(--lime)" : r.onTimePct >= 50 ? "var(--yellow-tx)" : "var(--red-tx)"}">${r.onTimePct}%</span>`}</td>
+        <td>${r.efficiencyPct === null ? "-" : `${r.efficiencyPct}%`}</td>
+        <td style="color:${r.absences > 0 ? "var(--red-tx)" : "var(--grey)"}">${r.absences}</td>
+        <td style="color:${r.lateDays > 0 ? "var(--yellow-tx)" : "var(--grey)"}">${r.lateDays}</td>
+        <td><span class="badge ${r.overallColor}">${r.overall}</span></td>
+      </tr>`).join("")}
     </tbody></table>`;
 }
 
