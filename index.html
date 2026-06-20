@@ -611,7 +611,7 @@ const ALL_TABS = [
   { key: "attendance", label: "الحضور والإجازات", roles: ["admin"] },
   { key: "payroll", label: "المرتبات", roles: ["admin"] },
   { key: "kpis", label: "تقييم الموظفين", roles: ["admin"] },
-  { key: "payments", label: "المدفوعات", roles: ["admin"] },
+  { key: "payments", label: "الإيرادات", roles: ["admin"] },
   { key: "expenses", label: "المصاريف", roles: ["admin"] }
 ];
 function tabsForRole() {
@@ -1626,7 +1626,7 @@ async function renderPaymentsTab(main) {
   const month = currentMonthStr();
   main.innerHTML = `
     <div class="page-head">
-      <div><h2>المدفوعات</h2><div class="desc">المستحق الشهري لكل عميل بيُحسب من بيانات العقد (تعدّليها من "تعديل" في تاب العملاء) - والمدفوع بيتجمع تلقائي من سجل الدفعات تحت، حتى لو على أكتر من دفعة جزئية</div></div>
+      <div><h2>الإيرادات</h2><div class="desc">المستحق الشهري لكل عميل بيُحسب من بيانات العقد (تعدّليها من "تعديل" في تاب العملاء) - والمدفوع بيتجمع تلقائي من سجل الدفعات تحت، حتى لو على أكتر من دفعة جزئية</div></div>
     </div>
     <div class="filter-bar">
       <label style="color:var(--grey);font-size:13px">الشهر:</label>
