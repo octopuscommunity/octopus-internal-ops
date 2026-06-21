@@ -1,0 +1,17 @@
+{
+  "name": "Octopus Community — نظام العمليات الداخلي",
+  "short_name": "Octopus Ops",
+  "description": "نظام العمليات الداخلي لشركة Octopus Community",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
