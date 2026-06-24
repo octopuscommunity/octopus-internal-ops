@@ -1,6 +1,6 @@
 {
-  "name": "Octopus Community — نظام العمليات الداخلي",
-  "short_name": "Octopus Ops",
+  "name": "Octopus Community",
+  "short_name": "Octopus Community",
   "description": "نظام العمليات الداخلي لشركة Octopus Community",
   "start_url": "./index.html",
   "scope": "./",
