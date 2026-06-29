@@ -486,6 +486,12 @@ let DEMO_DB = {
   leaves: [
     { id: 1, employee_id: 2, leave_type: "بدون راتب", start_date: "2026-06-16", end_date: "2026-06-16", status: "معتمدة", notes: "مثال" }
   ],
+  attendance_requests: [
+    { id: 1, employee_id: 1, work_date: "2026-06-20", check_in: "10:00", check_out: "18:00", status: "قيد المراجعة", requested_by_role: "team", am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: "2026-06-20T09:00:00" }
+  ],
+  leave_requests: [
+    { id: 1, employee_id: 3, start_date: "2026-07-01", end_date: "2026-07-02", status: "قيد المراجعة", requested_by_role: "team", am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: "2026-06-25T09:00:00" }
+  ],
   overtime_log: [
     { id: 1, employee_id: 1, work_date: "2026-06-15", hours: 1.5, rate_multiplier: 1.5, notes: "مثال - شغل لحد وقت متأخر على تسليم العميل" }
   ],
@@ -511,7 +517,7 @@ let DEMO_DB = {
   ],
   payroll_runs: []
 };
-let nextDemoId = { clients: 6, employees: 4, strategies: 4, tasks: 265, attendance: 5, leaves: 2, overtime_log: 2, overtime_requests: 2, task_comments: 2, payments: 4, expenses: 5, extra_revenue: 2, payroll_runs: 1 };
+let nextDemoId = { clients: 6, employees: 4, strategies: 4, tasks: 265, attendance: 5, leaves: 2, overtime_log: 2, overtime_requests: 2, attendance_requests: 2, leave_requests: 2, task_comments: 2, payments: 4, expenses: 5, extra_revenue: 2, payroll_runs: 1 };
 
 /* ============================================================
    طبقة الوصول للبيانات (Supabase أو وضع تجريبي) — باقي الكود
@@ -561,7 +567,7 @@ async function dbDelete(table, id) {
 /* ============================================================
    حالة عامة + كاش
    ============================================================ */
-const CACHE = { clients: [], employees: [], strategies: [], tasks: [], attendance: [], leaves: [], overtime_log: [], overtime_requests: [], task_comments: [], payments: [], expenses: [], extra_revenue: [] };
+const CACHE = { clients: [], employees: [], strategies: [], tasks: [], attendance: [], leaves: [], overtime_log: [], overtime_requests: [], attendance_requests: [], leave_requests: [], task_comments: [], payments: [], expenses: [], extra_revenue: [] };
 let selectedClientId = null;
 let selectedStrategyId = null;
 
@@ -583,7 +589,7 @@ function strategyTitle(id) {
 }
 async function exportAllToExcel() {
   showToast("بنجمّع كل البيانات... لحظة");
-  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "overtime_requests", "task_comments", "payments", "expenses", "extra_revenue"]);
+  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "overtime_requests", "attendance_requests", "leave_requests", "task_comments", "payments", "expenses", "extra_revenue"]);
 
   const wb = XLSX.utils.book_new();
 
@@ -641,6 +647,18 @@ async function exportAllToExcel() {
     "اعتماد الأكونت مانجر": r.am_decision_by || "-", "تاريخ اعتماد الأكونت مانجر": r.am_decision_at || "-",
     "اعتماد الأوبريشن مانجر": r.ops_decision_by || "-", "تاريخ اعتماد الأوبريشن": r.ops_decision_at || "-",
     "تاريخ الطلب": r.created_at
+  })));
+
+  addSheet("طلبات الحضور", CACHE.attendance_requests.map(r => ({
+    "ID": r.id, "الموظف": empName(r.employee_id), "التاريخ": r.work_date, "بدء الشغل": r.check_in || "-", "انتهاء الشغل": r.check_out || "-",
+    "الحالة": r.status, "طلبها بصفة": ROLE_LABELS[r.requested_by_role] || r.requested_by_role,
+    "اعتماد الأكونت مانجر": r.am_decision_by || "-", "اعتماد الأوبريشن مانجر": r.ops_decision_by || "-", "تاريخ الطلب": r.created_at
+  })));
+
+  addSheet("طلبات الإجازة", CACHE.leave_requests.map(r => ({
+    "ID": r.id, "الموظف": empName(r.employee_id), "من": r.start_date, "إلى": r.end_date,
+    "الحالة": r.status, "طلبها بصفة": ROLE_LABELS[r.requested_by_role] || r.requested_by_role,
+    "اعتماد الأكونت مانجر": r.am_decision_by || "-", "اعتماد الأوبريشن مانجر": r.ops_decision_by || "-", "تاريخ الطلب": r.created_at
   })));
 
   addSheet("مناقشات التاسكات", CACHE.task_comments.map(c => {
@@ -739,7 +757,11 @@ const ROLE_LABELS = {
 const ALL_TABS = [
   { key: "dashboard", label: "لوحة المتابعة", roles: ["admin"] },
   { key: "clients", label: "العملاء والاستراتيجيات", roles: ["admin"] },
+  { key: "my_attendance", label: "الحضور والانصراف", roles: ["team", "account_manager", "ops_manager"] },
   { key: "tasks", label: "التاسكات", roles: ["admin", "team", "account_manager", "ops_manager", "client"] },
+  { key: "my_leaves", label: "الإجازات", roles: ["team", "account_manager", "ops_manager"] },
+  { key: "my_overtime", label: "الأوفرتايم", roles: ["team", "account_manager", "ops_manager"] },
+  { key: "approvals", label: "الاعتمادات", roles: ["account_manager", "ops_manager"] },
   { key: "employees", label: "الموظفين", roles: ["admin"] },
   { key: "attendance", label: "الحضور والإجازات", roles: ["admin"] },
   { key: "payroll", label: "المرتبات", roles: ["admin"] },
@@ -768,6 +790,10 @@ async function switchTab(key) {
   if (key === "dashboard") await renderDashboardTab(main);
   else if (key === "clients") await renderClientsTab(main);
   else if (key === "tasks") await renderTasksTab(main);
+  else if (key === "my_attendance") await renderMyAttendanceTab(main);
+  else if (key === "my_leaves") await renderMyLeavesTab(main);
+  else if (key === "my_overtime") await renderMyOvertimeTab(main);
+  else if (key === "approvals") await renderApprovalsTab(main);
   else if (key === "employees") await renderEmployeesTab(main);
   else if (key === "attendance") await renderAttendanceTab(main);
   else if (key === "payroll") await renderPayrollTab(main);
@@ -784,7 +810,7 @@ async function boot() {
   if (DEMO_MODE) badges += '<span class="demo-badge">⚠ وضع تجريبي</span> ';
   badges += `<span class="demo-badge" style="background:var(--blue-bg);color:var(--blue-tx)">دخول: ${ROLE_LABELS[CURRENT_ROLE]}</span>`;
   document.getElementById("demo-badge-slot").innerHTML = badges;
-  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "overtime_requests", "task_comments", "payments", "expenses", "extra_revenue"]);
+  await refreshCache(["clients", "employees", "strategies", "tasks", "attendance", "leaves", "overtime_log", "overtime_requests", "attendance_requests", "leave_requests", "task_comments", "payments", "expenses", "extra_revenue"]);
   renderTabsBar();
   const myTabs = tabsForRole();
   switchTab(myTabs.length ? myTabs[0].key : "tasks");
@@ -804,19 +830,6 @@ const APPROVAL_FLOW = {
   account_manager: { from: "قيد المراجعة", to: "اعتماد الأكونت مانجر", rejectTo: "قيد التنفيذ", approveLabel: "اعتماد ✓", rejectLabel: "رجوع للتيم ✗" },
   ops_manager: { from: "اعتماد الأكونت مانجر", to: "اعتماد الأوبريشن", rejectTo: "قيد التنفيذ", approveLabel: "اعتماد ✓", rejectLabel: "رجوع للتيم ✗" },
   client: { from: "اعتماد الأوبريشن", to: "مكتمل", rejectTo: "قيد التنفيذ", approveLabel: "اعتماد نهائي ✓ (قفل)", rejectLabel: "رجوع للتيم ✗" }
-};
-
-/* ============================================================
-   طلبات الأوفرتايم - تيم أو أكونت مانجر يطلب باسم نفسه (كموظف)
-   تيم: قيد المراجعة → اعتماد الأكونت مانجر → معتمد (يدخل overtime_log)
-   أكونت مانجر: قيد المراجعة (يتخطى مرحلته) → معتمد مباشرة من الأوبريشن
-   الرفض في أي مرحلة يرجّع الطلب لـ"مرفوض - عدّل وأعد الطلب"
-   ============================================================ */
-const OT_REQUEST_REJECTED = "مرفوض - عدّل وأعد الطلب";
-const OT_REQUEST_APPROVED = "معتمد";
-const OT_APPROVAL_FLOW = {
-  account_manager: { from: "قيد المراجعة", to: "اعتماد الأكونت مانجر", approveLabel: "اعتماد ✓", rejectLabel: "رفض ✗" },
-  ops_manager: { fromAny: ["اعتماد الأكونت مانجر", "قيد المراجعة (مباشر من الأكونت مانجر)"], to: OT_REQUEST_APPROVED, approveLabel: "اعتماد نهائي ✓", rejectLabel: "رفض ✗" }
 };
 
 const MODULES = {
@@ -1558,9 +1571,7 @@ async function renderTasksTab(main) {
       <input type="month" id="flt-month" onchange="applyTaskFilters()" title="فلتر بالشهر (حسب تاريخ التاسك)">
       <button class="btn small secondary" onclick="document.getElementById('flt-month').value='';applyTaskFilters()">إلغاء فلتر الشهر</button>
     </div>
-    <div class="card"><div class="table-wrap" id="tasks-table">${tasksTableHTML(CACHE.tasks)}</div></div>
-    ${["team", "account_manager", "ops_manager", "admin"].includes(CURRENT_ROLE) ? overtimeRequestsSectionHTML() : ""}`;
-  if (["team", "account_manager", "ops_manager", "admin"].includes(CURRENT_ROLE)) wireOvertimeRequestForm();
+    <div class="card"><div class="table-wrap" id="tasks-table">${tasksTableHTML(CACHE.tasks)}</div></div>`;
 }
 function applyTaskFilters() {
   const clientVal = document.getElementById("flt-client").value;
@@ -1579,60 +1590,148 @@ function applyTaskFilters() {
 }
 
 /* ============================================================
-   طلبات الأوفرتايم - قسم فرعي جوه تاب التاسكات
-   تيم/أكونت مانجر بيطلبوا باسم نفسهم (كموظف) - الأدمن شايف الصورة كاملة
+   منطق عام مشترك لكل طلبات الاعتماد التلاتة (أوفرتايم/حضور/إجازة)
+   نفس الفلو بالضبط: تيم → اعتماد أكونت مانجر → اعتماد أوبريشن (نهائي)
+   لو الطالب نفسه أكونت مانجر، بيتخطى مرحلته ويروح مباشرة للأوبريشن
+   رفض في أي مرحلة يرجّع الطلب لـ"مرفوض - عدّل وأعد الطلب"
    ============================================================ */
-async function refreshOvertimeRequestsAndRenderTasks() {
-  await refreshCache(["overtime_requests", "overtime_log"]);
-  await renderTasksTab(document.getElementById("main-content"));
-}
-function otStatusBadge(status) {
-  if (status === OT_REQUEST_APPROVED) return `<span class="badge green">${status}</span>`;
-  if (status === OT_REQUEST_REJECTED) return `<span class="badge red">${status}</span>`;
+const REQ_REJECTED = "مرفوض - عدّل وأعد الطلب";
+const REQ_APPROVED = "معتمد";
+
+function reqStatusBadge(status) {
+  if (status === REQ_APPROVED) return `<span class="badge green">${status}</span>`;
+  if (status === REQ_REJECTED) return `<span class="badge red">${status}</span>`;
   return `<span class="badge yellow">${status}</span>`;
 }
-function otRoleHint() {
-  return {
-    team: "اطلبي أوفرتايم باسمك - بيروح للأكونت مانجر يعتمده الأول وبعدها للأوبريشن مانجر",
-    account_manager: "اعتمدي طلبات التيم اللي وصلت لمرحلتك، وكمان تقدري تطلبي أوفرتايم لنفسك - بيروح مباشرة للأوبريشن مانجر",
-    ops_manager: "الاعتماد النهائي - بعده الأوفرتايم بيدخل تلقائي في حساب المرتب",
-    admin: "متابعة كاملة لكل الطلبات: مين طلب، اتوافق عليه من مين، وفي كل مرحلة"
-  }[CURRENT_ROLE] || "";
+function reqHistoryHTML(r) {
+  const parts = [];
+  if (r.am_decision_by) parts.push(`أكونت مانجر: ${escapeHtml(r.am_decision_by)}`);
+  if (r.ops_decision_by) parts.push(`أوبريشن: ${escapeHtml(r.ops_decision_by)}`);
+  return parts.length ? `<div class="desc">${parts.join(" · ")}</div>` : `<div class="desc">-</div>`;
 }
-function overtimeRequestsSectionHTML() {
-  const showForm = ["team", "account_manager"].includes(CURRENT_ROLE);
-  return `
-    <div class="page-head" style="margin-top:28px">
-      <div><h3>طلبات الأوفرتايم</h3><div class="desc">${otRoleHint()}</div></div>
+function reqActionCellHTML(r, table) {
+  if (CURRENT_ROLE === "admin") {
+    return `<button class="btn small danger" onclick="deleteRow('${table}', ${r.id}, ()=>switchTab(activeTab))">حذف</button>`;
+  }
+  if (CURRENT_ROLE === "account_manager" && r.status === "قيد المراجعة" && r.requested_by_role === "team") {
+    return `<button class="btn small secondary" onclick='openReqDecisionModal(${jsAttr(r)}, "account_manager", "${table}")'>مراجعة</button>`;
+  }
+  if (CURRENT_ROLE === "ops_manager" && (r.status === "اعتماد الأكونت مانجر" || (r.status === "قيد المراجعة" && r.requested_by_role === "account_manager"))) {
+    return `<button class="btn small secondary" onclick='openReqDecisionModal(${jsAttr(r)}, "ops_manager", "${table}")'>مراجعة واعتماد نهائي</button>`;
+  }
+  return "";
+}
+/* بعد الاعتماد النهائي - كل نوع طلب بيحط بياناته في الجدول الحقيقي المناسب */
+async function applyApprovedRequestEffect(table, req) {
+  if (table === "overtime_requests") {
+    await dbInsert("overtime_log", { employee_id: req.employee_id, work_date: req.work_date, hours: req.hours, rate_multiplier: req.rate_multiplier || 1.5, notes: `معتمد عبر طلب أوفرتايم #${req.id} - ${req.reason || ""}` });
+  } else if (table === "attendance_requests") {
+    await dbInsert("attendance", { employee_id: req.employee_id, work_date: req.work_date, check_in: req.check_in, check_out: req.check_out, status: "حاضر", notes: `معتمد عبر طلب حضور #${req.id}` });
+  } else if (table === "leave_requests") {
+    await dbInsert("leaves", { employee_id: req.employee_id, leave_type: "بدون راتب", start_date: req.start_date, end_date: req.end_date, status: "معتمدة", notes: `معتمد عبر طلب إجازة #${req.id}` });
+  }
+}
+function openReqDecisionModal(req, stage, table) {
+  const box = document.getElementById("modal-box");
+  const isAM = stage === "account_manager";
+  const titleByTable = { overtime_requests: "طلب أوفرتايم", attendance_requests: "طلب تسجيل حضور", leave_requests: "طلب إجازة بدون راتب" };
+  const detailsByTable = {
+    overtime_requests: `${req.work_date} · ${fmtHours(req.hours)} · ${escapeHtml(req.reason || "بدون سبب مكتوب")}`,
+    attendance_requests: `${req.work_date} · من ${req.check_in || "-"} إلى ${req.check_out || "-"}`,
+    leave_requests: `من ${req.start_date} إلى ${req.end_date}`
+  };
+  box.innerHTML = `
+    <h3>${titleByTable[table]} - ${escapeHtml(empName(req.employee_id))}</h3>
+    <div class="desc" style="margin-bottom:14px">${detailsByTable[table]}</div>
+    <div class="field">
+      <label>اسمك (المعتمد)</label>
+      <input type="text" id="rd-approver-name" placeholder="مثلاً: فادي">
     </div>
+    <div class="modal-actions">
+      <button class="btn danger" id="rd-reject">رفض ✗</button>
+      <button class="btn" id="rd-approve">${isAM ? "اعتماد ✓" : "اعتماد نهائي ✓"}</button>
+    </div>`;
+  document.getElementById("rd-approve").onclick = async () => {
+    const approverName = document.getElementById("rd-approver-name").value.trim() || (isAM ? "أكونت مانجر" : "أوبريشن مانجر");
+    if (isAM) {
+      await dbUpdate(table, req.id, { status: "اعتماد الأكونت مانجر", am_decision_by: approverName, am_decision_at: new Date().toISOString() });
+      closeModal();
+      showToast("تم الاعتماد، انتقل للأوبريشن مانجر ✓");
+    } else {
+      await dbUpdate(table, req.id, { status: REQ_APPROVED, ops_decision_by: approverName, ops_decision_at: new Date().toISOString() });
+      await applyApprovedRequestEffect(table, req);
+      closeModal();
+      showToast("تم الاعتماد النهائي ✓");
+    }
+    await refreshCache([table, "overtime_log", "attendance", "leaves"]);
+    await switchTab(activeTab);
+  };
+  document.getElementById("rd-reject").onclick = async () => {
+    await dbUpdate(table, req.id, { status: REQ_REJECTED });
+    closeModal();
+    showToast("تم رفض الطلب - يقدر يعدّله ويعيد الطلب");
+    await refreshCache([table]);
+    await switchTab(activeTab);
+  };
+  document.getElementById("modal-overlay").style.display = "flex";
+}
+function reqRoleHint(kind) {
+  const hints = {
+    overtime: {
+      team: "اطلبي أوفرتايم باسمك - بيروح للأكونت مانجر يعتمده الأول وبعدها للأوبريشن مانجر",
+      account_manager: "اعتمدي طلبات التيم اللي وصلت لمرحلتك، وكمان تقدري تطلبي أوفرتايم لنفسك - بيروح مباشرة للأوبريشن مانجر",
+      ops_manager: "الاعتماد النهائي - بعده الأوفرتايم بيدخل تلقائي في حساب المرتب"
+    },
+    attendance: {
+      team: "سجّلي حضورك وانصرافك باسمك - بيروح للأكونت مانجر يعتمده الأول وبعدها للأوبريشن مانجر",
+      account_manager: "اعتمدي طلبات التيم اللي وصلت لمرحلتك، وكمان تقدري تسجّلي حضورك بنفس الطريقة - بيروح مباشرة للأوبريشن مانجر",
+      ops_manager: "الاعتماد النهائي - بعده الحضور بيتسجل رسمي (سجل توثيقي بس، مالوش تأثير على المرتب)"
+    },
+    leave: {
+      team: "اطلبي إجازة بدون راتب باسمك - بيروح للأكونت مانجر يعتمده الأول وبعدها للأوبريشن مانجر",
+      account_manager: "اعتمدي طلبات التيم اللي وصلت لمرحلتك، وكمان تقدري تطلبي إجازة لنفسك - بيروح مباشرة للأوبريشن مانجر",
+      ops_manager: "الاعتماد النهائي - بعده الإجازة بتتسجل وتدخل في حساب المرتب (خصم الإجازة بدون راتب)"
+    }
+  };
+  return hints[kind][CURRENT_ROLE] || "";
+}
+
+/* ============================================================
+   تاب الأوفرتايم - مستقل
+   ============================================================ */
+async function renderMyOvertimeTab(main) {
+  const showForm = ["team", "account_manager"].includes(CURRENT_ROLE);
+  main.innerHTML = `
+    <div class="page-head"><div><h2>الأوفرتايم</h2><div class="desc">${reqRoleHint("overtime")}</div></div></div>
     ${showForm ? `
     <div class="card" style="margin-bottom:14px">
       <div class="field-row">
         <div class="field">
           <label>اسمك (الموظف)</label>
-          <select id="otr-employee">
-            <option value="">اختاري اسمك</option>
-            ${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}
-          </select>
+          <select id="otr-employee"><option value="">اختاري اسمك</option>${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}</select>
         </div>
-        <div class="field">
-          <label>تاريخ الأوفرتايم</label>
-          <input type="date" id="otr-date">
-        </div>
-        <div class="field">
-          <label>عدد الساعات</label>
-          <input type="number" id="otr-hours" step="0.5" min="0.5" placeholder="مثلاً 2">
-        </div>
+        <div class="field"><label>تاريخ الأوفرتايم</label><input type="date" id="otr-date"></div>
+        <div class="field"><label>عدد الساعات</label><input type="number" id="otr-hours" step="0.5" min="0.5" placeholder="مثلاً 2"></div>
       </div>
-      <div class="field">
-        <label>سبب الأوفرتايم</label>
-        <textarea id="otr-reason" placeholder="مثلاً: تسليم عاجل لعميل، تصوير امتد لوقت متأخر..."></textarea>
-      </div>
-      <div class="modal-actions" style="margin-bottom:0">
-        <button class="btn" id="otr-submit">إرسال طلب الأوفرتايم</button>
-      </div>
+      <div class="field"><label>سبب الأوفرتايم</label><textarea id="otr-reason" placeholder="مثلاً: تسليم عاجل لعميل، تصوير امتد لوقت متأخر..."></textarea></div>
+      <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="otr-submit">إرسال طلب الأوفرتايم</button></div>
     </div>` : ""}
     <div class="card"><div class="table-wrap" id="overtime-requests-table">${overtimeRequestsTableHTML(CACHE.overtime_requests)}</div></div>`;
+  if (showForm) {
+    document.getElementById("otr-submit").onclick = async () => {
+      const employeeId = Number(document.getElementById("otr-employee").value) || null;
+      const workDate = document.getElementById("otr-date").value;
+      const hours = Number(document.getElementById("otr-hours").value) || 0;
+      const reason = document.getElementById("otr-reason").value.trim();
+      if (!employeeId) { showToast("اختاري اسمك الأول"); return; }
+      if (!workDate) { showToast("حددي تاريخ الأوفرتايم"); return; }
+      if (!hours) { showToast("حددي عدد الساعات"); return; }
+      await dbInsert("overtime_requests", { employee_id: employeeId, work_date: workDate, hours, rate_multiplier: 1.5, reason, status: "قيد المراجعة", requested_by_role: CURRENT_ROLE, am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: new Date().toISOString() });
+      showToast("تم إرسال طلب الأوفرتايم ✓");
+      await refreshCache(["overtime_requests"]);
+      await switchTab("my_overtime");
+    };
+  }
 }
 function overtimeRequestsTableHTML(rows) {
   if (!rows.length) return `<table><tbody><tr class="empty-row"><td>لسه مفيش طلبات أوفرتايم</td></tr></tbody></table>`;
@@ -1644,85 +1743,139 @@ function overtimeRequestsTableHTML(rows) {
         <td>${r.work_date || "-"}</td>
         <td>${fmtHours(r.hours)}</td>
         <td>${escapeHtml(r.reason || "-")}</td>
-        <td>${otStatusBadge(r.status)}</td>
-        <td>${otHistoryHTML(r)}</td>
-        <td>${otActionCellHTML(r)}</td>
+        <td>${reqStatusBadge(r.status)}</td>
+        <td>${reqHistoryHTML(r)}</td>
+        <td>${reqActionCellHTML(r, "overtime_requests")}</td>
       </tr>`).join("")}</tbody></table>`;
 }
-function otHistoryHTML(r) {
-  const parts = [];
-  if (r.am_decision_by) parts.push(`أكونت مانجر: ${escapeHtml(r.am_decision_by)}`);
-  if (r.ops_decision_by) parts.push(`أوبريشن: ${escapeHtml(r.ops_decision_by)}`);
-  return parts.length ? `<div class="desc">${parts.join(" · ")}</div>` : `<div class="desc">-</div>`;
-}
-function otActionCellHTML(r) {
-  if (CURRENT_ROLE === "admin") {
-    return `<button class="btn small danger" onclick="deleteRow('overtime_requests', ${r.id}, ()=>refreshAndRender('tasks'))">حذف</button>`;
+
+/* ============================================================
+   تاب الحضور والانصراف - مستقل (سجل توثيقي بس، مالوش تأثير على المرتب)
+   ============================================================ */
+async function renderMyAttendanceTab(main) {
+  const showForm = ["team", "account_manager"].includes(CURRENT_ROLE);
+  main.innerHTML = `
+    <div class="page-head"><div><h2>الحضور والانصراف</h2><div class="desc">${reqRoleHint("attendance")}</div></div></div>
+    ${showForm ? `
+    <div class="card" style="margin-bottom:14px">
+      <div class="field-row">
+        <div class="field">
+          <label>اسمك (الموظف)</label>
+          <select id="atr-employee"><option value="">اختاري اسمك</option>${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>التاريخ</label><input type="date" id="atr-date"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>وقت بدء الشغل</label><input type="time" id="atr-checkin"></div>
+        <div class="field"><label>وقت انتهاء الشغل</label><input type="time" id="atr-checkout"></div>
+      </div>
+      <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="atr-submit">إرسال تسجيل الحضور</button></div>
+    </div>` : ""}
+    <div class="card"><div class="table-wrap" id="attendance-requests-table">${attendanceRequestsTableHTML(CACHE.attendance_requests)}</div></div>`;
+  if (showForm) {
+    document.getElementById("atr-submit").onclick = async () => {
+      const employeeId = Number(document.getElementById("atr-employee").value) || null;
+      const workDate = document.getElementById("atr-date").value;
+      const checkIn = document.getElementById("atr-checkin").value;
+      const checkOut = document.getElementById("atr-checkout").value;
+      if (!employeeId) { showToast("اختاري اسمك الأول"); return; }
+      if (!workDate) { showToast("حددي التاريخ"); return; }
+      if (!checkIn || !checkOut) { showToast("حددي وقت البدء والانتهاء"); return; }
+      await dbInsert("attendance_requests", { employee_id: employeeId, work_date: workDate, check_in: checkIn, check_out: checkOut, status: "قيد المراجعة", requested_by_role: CURRENT_ROLE, am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: new Date().toISOString() });
+      showToast("تم إرسال تسجيل الحضور ✓");
+      await refreshCache(["attendance_requests"]);
+      await switchTab("my_attendance");
+    };
   }
-  if (CURRENT_ROLE === "account_manager" && r.status === "قيد المراجعة" && r.requested_by_role === "team") {
-    return `<button class="btn small secondary" onclick='openOtDecisionModal(${jsAttr(r)}, "account_manager")'>مراجعة</button>`;
-  }
-  if (CURRENT_ROLE === "ops_manager" && (r.status === "اعتماد الأكونت مانجر" || (r.status === "قيد المراجعة" && r.requested_by_role === "account_manager"))) {
-    return `<button class="btn small secondary" onclick='openOtDecisionModal(${jsAttr(r)}, "ops_manager")'>مراجعة واعتماد نهائي</button>`;
-  }
-  return "";
 }
-function wireOvertimeRequestForm() {
-  const btn = document.getElementById("otr-submit");
-  if (!btn) return;
-  btn.onclick = async () => {
-    const employeeId = Number(document.getElementById("otr-employee").value) || null;
-    const workDate = document.getElementById("otr-date").value;
-    const hours = Number(document.getElementById("otr-hours").value) || 0;
-    const reason = document.getElementById("otr-reason").value.trim();
-    if (!employeeId) { showToast("اختاري اسمك الأول"); return; }
-    if (!workDate) { showToast("حددي تاريخ الأوفرتايم"); return; }
-    if (!hours) { showToast("حددي عدد الساعات"); return; }
-    await dbInsert("overtime_requests", {
-      employee_id: employeeId, work_date: workDate, hours, rate_multiplier: 1.5, reason,
-      status: "قيد المراجعة", requested_by_role: CURRENT_ROLE,
-      am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null,
-      created_at: new Date().toISOString()
-    });
-    showToast("تم إرسال طلب الأوفرتايم ✓");
-    await refreshOvertimeRequestsAndRenderTasks();
-  };
+function attendanceRequestsTableHTML(rows) {
+  if (!rows.length) return `<table><tbody><tr class="empty-row"><td>لسه مفيش تسجيلات حضور</td></tr></tbody></table>`;
+  const sorted = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return `<table>
+    <thead><tr><th>الموظف</th><th>التاريخ</th><th>بدء الشغل</th><th>انتهاء الشغل</th><th>الحالة</th><th>سجل الاعتماد</th><th></th></tr></thead>
+    <tbody>${sorted.map(r => `<tr>
+        <td><b>${escapeHtml(empName(r.employee_id))}</b></td>
+        <td>${r.work_date || "-"}</td>
+        <td>${r.check_in || "-"}</td>
+        <td>${r.check_out || "-"}</td>
+        <td>${reqStatusBadge(r.status)}</td>
+        <td>${reqHistoryHTML(r)}</td>
+        <td>${reqActionCellHTML(r, "attendance_requests")}</td>
+      </tr>`).join("")}</tbody></table>`;
 }
-function openOtDecisionModal(req, stage) {
-  const box = document.getElementById("modal-box");
-  const flow = OT_APPROVAL_FLOW[stage];
-  box.innerHTML = `
-    <h3>طلب أوفرتايم - ${escapeHtml(empName(req.employee_id))}</h3>
-    <div class="desc" style="margin-bottom:14px">${req.work_date} · ${fmtHours(req.hours)} · ${escapeHtml(req.reason || "بدون سبب مكتوب")}</div>
-    <div class="field">
-      <label>اسمك (المعتمد)</label>
-      <input type="text" id="otd-approver-name" placeholder="مثلاً: فادي">
-    </div>
-    <div class="modal-actions">
-      <button class="btn danger" id="otd-reject">${flow.rejectLabel}</button>
-      <button class="btn" id="otd-approve">${flow.approveLabel}</button>
-    </div>`;
-  document.getElementById("otd-approve").onclick = async () => {
-    const approverName = document.getElementById("otd-approver-name").value.trim() || (stage === "account_manager" ? "أكونت مانجر" : "أوبريشن مانجر");
-    if (stage === "account_manager") {
-      await dbUpdate("overtime_requests", req.id, { status: "اعتماد الأكونت مانجر", am_decision_by: approverName, am_decision_at: new Date().toISOString() });
-      closeModal();
-      showToast("تم الاعتماد، انتقل للأوبريشن مانجر ✓");
-    } else {
-      await dbUpdate("overtime_requests", req.id, { status: OT_REQUEST_APPROVED, ops_decision_by: approverName, ops_decision_at: new Date().toISOString() });
-      await dbInsert("overtime_log", { employee_id: req.employee_id, work_date: req.work_date, hours: req.hours, rate_multiplier: req.rate_multiplier || 1.5, notes: `معتمد عبر طلب أوفرتايم #${req.id} - ${req.reason || ""}` });
-      closeModal();
-      showToast("تم الاعتماد النهائي - الأوفرتايم دخل حساب المرتب ✓");
-    }
-    await refreshOvertimeRequestsAndRenderTasks();
-  };
-  document.getElementById("otd-reject").onclick = async () => {
-    await dbUpdate("overtime_requests", req.id, { status: OT_REQUEST_REJECTED });
-    closeModal();
-    showToast("تم رفض الطلب - يقدر يعدّله ويعيد الطلب");
-    await refreshOvertimeRequestsAndRenderTasks();
-  };
-  document.getElementById("modal-overlay").style.display = "flex";
+
+/* ============================================================
+   تاب الإجازات - مستقل (إجازة بدون راتب - بتأثر على حساب المرتب بعد الاعتماد)
+   ============================================================ */
+async function renderMyLeavesTab(main) {
+  const showForm = ["team", "account_manager"].includes(CURRENT_ROLE);
+  main.innerHTML = `
+    <div class="page-head"><div><h2>الإجازات</h2><div class="desc">${reqRoleHint("leave")}</div></div></div>
+    ${showForm ? `
+    <div class="card" style="margin-bottom:14px">
+      <div class="field-row">
+        <div class="field">
+          <label>اسمك (الموظف)</label>
+          <select id="lvr-employee"><option value="">اختاري اسمك</option>${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label>من تاريخ</label><input type="date" id="lvr-start"></div>
+        <div class="field"><label>إلى تاريخ</label><input type="date" id="lvr-end"></div>
+      </div>
+      <div class="desc" style="margin-bottom:10px">إجازة بدون راتب - بتدخل في حساب المرتب بعد الاعتماد النهائي</div>
+      <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="lvr-submit">إرسال طلب الإجازة</button></div>
+    </div>` : ""}
+    <div class="card"><div class="table-wrap" id="leave-requests-table">${leaveRequestsTableHTML(CACHE.leave_requests)}</div></div>`;
+  if (showForm) {
+    document.getElementById("lvr-submit").onclick = async () => {
+      const employeeId = Number(document.getElementById("lvr-employee").value) || null;
+      const startDate = document.getElementById("lvr-start").value;
+      const endDate = document.getElementById("lvr-end").value;
+      if (!employeeId) { showToast("اختاري اسمك الأول"); return; }
+      if (!startDate || !endDate) { showToast("حددي تاريخ البداية والنهاية"); return; }
+      await dbInsert("leave_requests", { employee_id: employeeId, start_date: startDate, end_date: endDate, status: "قيد المراجعة", requested_by_role: CURRENT_ROLE, am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: new Date().toISOString() });
+      showToast("تم إرسال طلب الإجازة ✓");
+      await refreshCache(["leave_requests"]);
+      await switchTab("my_leaves");
+    };
+  }
+}
+function leaveRequestsTableHTML(rows) {
+  if (!rows.length) return `<table><tbody><tr class="empty-row"><td>لسه مفيش طلبات إجازة</td></tr></tbody></table>`;
+  const sorted = [...rows].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return `<table>
+    <thead><tr><th>الموظف</th><th>من</th><th>إلى</th><th>الحالة</th><th>سجل الاعتماد</th><th></th></tr></thead>
+    <tbody>${sorted.map(r => `<tr>
+        <td><b>${escapeHtml(empName(r.employee_id))}</b></td>
+        <td>${r.start_date || "-"}</td>
+        <td>${r.end_date || "-"}</td>
+        <td>${reqStatusBadge(r.status)}</td>
+        <td>${reqHistoryHTML(r)}</td>
+        <td>${reqActionCellHTML(r, "leave_requests")}</td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+/* ============================================================
+   تاب الاعتمادات - للأكونت مانجر/الأوبريشن مانجر بس
+   يجمع الطلبات التلاتة المحتاجة ردهم في صفحة واحدة
+   ============================================================ */
+async function renderApprovalsTab(main) {
+  await refreshCache(["overtime_requests", "attendance_requests", "leave_requests"]);
+  const pendingOt = CACHE.overtime_requests.filter(r => reqNeedsMyDecision(r));
+  const pendingAt = CACHE.attendance_requests.filter(r => reqNeedsMyDecision(r));
+  const pendingLv = CACHE.leave_requests.filter(r => reqNeedsMyDecision(r));
+  main.innerHTML = `
+    <div class="page-head"><div><h2>الاعتمادات</h2><div class="desc">كل الطلبات اللي محتاجة قرارك دلوقتي - أوفرتايم، حضور، وإجازات</div></div></div>
+    <h3 style="margin-bottom:10px">طلبات الأوفرتايم (${pendingOt.length})</h3>
+    <div class="card" style="margin-bottom:22px"><div class="table-wrap">${overtimeRequestsTableHTML(pendingOt)}</div></div>
+    <h3 style="margin-bottom:10px">طلبات الحضور والانصراف (${pendingAt.length})</h3>
+    <div class="card" style="margin-bottom:22px"><div class="table-wrap">${attendanceRequestsTableHTML(pendingAt)}</div></div>
+    <h3 style="margin-bottom:10px">طلبات الإجازة (${pendingLv.length})</h3>
+    <div class="card"><div class="table-wrap">${leaveRequestsTableHTML(pendingLv)}</div></div>`;
+}
+function reqNeedsMyDecision(r) {
+  if (CURRENT_ROLE === "account_manager") return r.status === "قيد المراجعة" && r.requested_by_role === "team";
+  if (CURRENT_ROLE === "ops_manager") return r.status === "اعتماد الأكونت مانجر" || (r.status === "قيد المراجعة" && r.requested_by_role === "account_manager");
+  return false;
 }
 
 /* ============================================================
