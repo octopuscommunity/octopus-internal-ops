@@ -1401,10 +1401,35 @@ function openTaskModal(task, mode) {
   }
 
   const comments = CACHE.task_comments.filter(c => c.task_id === task.id).sort((a, b) => (a.created_at > b.created_at ? 1 : -1));
+  const canSetAssignment = ["account_manager", "ops_manager"].includes(CURRENT_ROLE);
+  const assigneeIsLocked = !!task.assignee_locked;
+  const dueDateIsLocked = !!task.due_date_locked;
+  const assignmentSectionHTML = canSetAssignment ? `
+    <div class="card" style="margin-bottom:14px;padding:14px">
+      <div class="desc" style="margin-bottom:10px">تحديد المسؤول والتسليم - بمجرد ما تحدّدي قيمة هنا بتقفل عليكي، وبعدها لازم تتعدّل من عند الأدمن لو غلط</div>
+      <div class="field-row">
+        <div class="field">
+          <label>المسؤول عن التاسك</label>
+          ${assigneeIsLocked
+            ? `<div style="padding:9px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--grey)">${escapeHtml(empName(task.assignee_id))} <span class="badge grey" style="margin-right:6px">مقفول</span></div>`
+            : `<select id="tm-set-assignee"><option value="">اختاري المسؤول</option>${CACHE.employees.map(e => `<option value="${e.id}" ${e.id === task.assignee_id ? "selected" : ""}>${escapeHtml(e.name)}</option>`).join("")}</select>
+               <button class="btn small" id="tm-save-assignee" style="margin-top:8px;width:100%">حفظ المسؤول (يقفل بعد الحفظ)</button>`}
+        </div>
+        <div class="field">
+          <label>تاريخ التسليم</label>
+          ${dueDateIsLocked
+            ? `<div style="padding:9px 11px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--grey)">${task.due_date || "-"} <span class="badge grey" style="margin-right:6px">مقفول</span></div>`
+            : `<input type="date" id="tm-set-due-date" value="${task.due_date || ""}">
+               <button class="btn small" id="tm-save-due-date" style="margin-top:8px;width:100%">حفظ التاريخ (يقفل بعد الحفظ)</button>`}
+        </div>
+      </div>
+    </div>` : "";
   box.innerHTML = `
     <h3>${escapeHtml(task.title)}</h3>
     <div class="desc" style="margin-bottom:14px">${escapeHtml(client)} · المسؤول: ${escapeHtml(empName(task.assignee_id))} · ${statusBadge(task.status)}</div>
+    ${assignmentSectionHTML}
     <div style="border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:10px 0;margin-bottom:14px;max-height:220px;overflow-y:auto" id="tm-comments">
+
       ${comments.length ? comments.map(c => `
         <div style="margin-bottom:10px">
           <div style="font-size:12px;color:var(--grey)">
@@ -1428,6 +1453,29 @@ function openTaskModal(task, mode) {
       <button class="btn secondary" id="tm-send-comment" style="flex:none">إرسال التعليق</button>
     </div>
     ${controlsHTML}`;
+
+  if (canSetAssignment && document.getElementById("tm-save-assignee")) {
+    document.getElementById("tm-save-assignee").onclick = async () => {
+      const val = document.getElementById("tm-set-assignee").value;
+      if (!val) { showToast("اختاري المسؤول الأول"); return; }
+      await dbUpdate("tasks", task.id, { assignee_id: Number(val), assignee_locked: true });
+      showToast("تم حفظ المسؤول ✓ - مش هتقدري تعدّليه تاني، لو غلط لازم يتعدّل من عند الأدمن");
+      await refreshCache(["tasks"]);
+      const updatedTask = CACHE.tasks.find(x => x.id === task.id) || task;
+      openTaskModal(updatedTask, mode);
+    };
+  }
+  if (canSetAssignment && document.getElementById("tm-save-due-date")) {
+    document.getElementById("tm-save-due-date").onclick = async () => {
+      const val = document.getElementById("tm-set-due-date").value;
+      if (!val) { showToast("حددي تاريخ التسليم الأول"); return; }
+      await dbUpdate("tasks", task.id, { due_date: val, due_date_locked: true });
+      showToast("تم حفظ تاريخ التسليم ✓ - مش هتقدري تعدّليه تاني، لو غلط لازم يتعدّل من عند الأدمن");
+      await refreshCache(["tasks"]);
+      const updatedTask = CACHE.tasks.find(x => x.id === task.id) || task;
+      openTaskModal(updatedTask, mode);
+    };
+  }
 
   document.getElementById("tm-send-comment").onclick = async () => {
     const text = document.getElementById("tm-comment-text").value.trim();
