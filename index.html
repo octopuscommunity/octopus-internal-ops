@@ -1774,33 +1774,62 @@ async function renderMyAttendanceTab(main) {
     <div class="page-head"><div><h2>الحضور والانصراف</h2><div class="desc">${reqRoleHint("attendance")}</div></div></div>
     ${showForm ? `
     <div class="card" style="margin-bottom:14px">
-      <div class="field-row">
-        <div class="field">
-          <label>اسمك (الموظف)</label>
-          <select id="atr-employee"><option value="">اختاري اسمك</option>${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}</select>
-        </div>
-        <div class="field"><label>التاريخ</label><input type="date" id="atr-date"></div>
+      <div class="field">
+        <label>اسمك (الموظف)</label>
+        <select id="atr-employee" onchange="updateAttendanceFormState()"><option value="">اختاري اسمك</option>${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}</select>
       </div>
-      <div class="field-row">
-        <div class="field"><label>وقت بدء الشغل</label><input type="time" id="atr-checkin"></div>
-        <div class="field"><label>وقت انتهاء الشغل</label><input type="time" id="atr-checkout"></div>
-      </div>
-      <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="atr-submit">إرسال تسجيل الحضور</button></div>
+      <div id="atr-form-body"></div>
     </div>` : ""}
     ${employeeFilterHTML("atd")}
     <div class="card"><div class="table-wrap" id="attendance-requests-table">${attendanceRequestsTableHTML(CACHE.attendance_requests)}</div></div>`;
   wireEmployeeFilter("atd", () => CACHE.attendance_requests, attendanceRequestsTableHTML, "attendance-requests-table");
-  if (showForm) {
-    document.getElementById("atr-submit").onclick = async () => {
-      const employeeId = Number(document.getElementById("atr-employee").value) || null;
+  if (showForm) updateAttendanceFormState();
+}
+/* بيدوّر هل الموظف المختار عنده تسجيل حضور مفتوح (سجّل حضور ولسه منسجلش انصراف) */
+function findOpenAttendanceRequest(employeeId) {
+  return CACHE.attendance_requests.find(r => r.employee_id === employeeId && !r.check_out);
+}
+function nowTimeStr() {
+  const d = new Date();
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+function todayDateStr() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+function updateAttendanceFormState() {
+  const body = document.getElementById("atr-form-body");
+  const employeeId = Number(document.getElementById("atr-employee").value) || null;
+  if (!employeeId) { body.innerHTML = ""; return; }
+  const open = findOpenAttendanceRequest(employeeId);
+  if (open) {
+    body.innerHTML = `
+      <div class="desc" style="margin-bottom:10px">عندك تسجيل حضور مفتوح من ${open.work_date} الساعة ${open.check_in} - سجّلي وقت انصرافك تقفله</div>
+      <div class="field"><label>وقت الانصراف</label><input type="time" id="atr-checkout" value="${nowTimeStr()}"></div>
+      <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="atr-submit-out">تسجيل الانصراف</button></div>`;
+    document.getElementById("atr-submit-out").onclick = async () => {
+      const checkOut = document.getElementById("atr-checkout").value;
+      if (!checkOut) { showToast("حددي وقت الانصراف"); return; }
+      await dbUpdate("attendance_requests", open.id, { check_out: checkOut, status: "قيد المراجعة" });
+      showToast("تم تسجيل الانصراف ✓ - الطلب بكامله راح للاعتماد");
+      await refreshCache(["attendance_requests"]);
+      await switchTab("my_attendance");
+    };
+  } else {
+    body.innerHTML = `
+      <div class="field-row">
+        <div class="field"><label>التاريخ</label><input type="date" id="atr-date" value="${todayDateStr()}"></div>
+        <div class="field"><label>وقت الحضور</label><input type="time" id="atr-checkin" value="${nowTimeStr()}"></div>
+      </div>
+      <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="atr-submit-in">تسجيل الحضور</button></div>`;
+    document.getElementById("atr-submit-in").onclick = async () => {
+      const employeeId2 = Number(document.getElementById("atr-employee").value) || null;
       const workDate = document.getElementById("atr-date").value;
       const checkIn = document.getElementById("atr-checkin").value;
-      const checkOut = document.getElementById("atr-checkout").value;
-      if (!employeeId) { showToast("اختاري اسمك الأول"); return; }
       if (!workDate) { showToast("حددي التاريخ"); return; }
-      if (!checkIn || !checkOut) { showToast("حددي وقت البدء والانتهاء"); return; }
-      await dbInsert("attendance_requests", { employee_id: employeeId, work_date: workDate, check_in: checkIn, check_out: checkOut, status: "قيد المراجعة", requested_by_role: CURRENT_ROLE, am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: new Date().toISOString() });
-      showToast("تم إرسال تسجيل الحضور ✓");
+      if (!checkIn) { showToast("حددي وقت الحضور"); return; }
+      await dbInsert("attendance_requests", { employee_id: employeeId2, work_date: workDate, check_in: checkIn, check_out: null, status: "مفتوح - في انتظار الانصراف", requested_by_role: CURRENT_ROLE, am_decision_by: null, am_decision_at: null, ops_decision_by: null, ops_decision_at: null, created_at: new Date().toISOString() });
+      showToast("تم تسجيل الحضور ✓ - متنسيش تسجلي الانصراف لما تخلصي");
       await refreshCache(["attendance_requests"]);
       await switchTab("my_attendance");
     };
