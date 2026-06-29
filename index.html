@@ -928,7 +928,7 @@ const MODULES = {
   payments: {
     table: "payments", titleSingle: "دفعة",
     fields: [
-      { key: "client_id", label: "العميل", type: "select-ref", refTable: "clients", refLabel: "name", required: true },
+      { key: "client_id", label: "العميل", type: "select-ref-other", refTable: "clients", refLabel: "name", required: true },
       { key: "billing_month", label: "الشهر المستحق عليه", type: "month", required: true },
       { key: "payment_date", label: "تاريخ الدفعة الفعلي", type: "date", required: true },
       { key: "amount", label: "المبلغ المدفوع", type: "number", required: true },
@@ -952,7 +952,7 @@ const MODULES = {
   extra_revenue: {
     table: "extra_revenue", titleSingle: "إيراد إضافي",
     fields: [
-      { key: "client_id", label: "العميل", type: "select-ref", refTable: "clients", refLabel: "name", required: true },
+      { key: "client_id", label: "العميل", type: "select-ref-other", refTable: "clients", refLabel: "name", required: true },
       { key: "category", label: "نوع الإيراد", type: "select", options: ["يوم تصوير إضافي", "فعالية / إيفنت", "خدمة إضافية أخرى"], required: true },
       { key: "description", label: "الوصف", type: "text", required: true },
       { key: "amount", label: "المبلغ", type: "number", required: true },
@@ -974,6 +974,13 @@ function fieldInputHTML(field, value) {
     const rows = CACHE[field.refTable] || [];
     let opts = `<option value="">${field.required ? "اختاري..." : "بدون"}</option>`;
     opts += rows.map(r => `<option value="${r.id}" ${String(r.id) === String(v) ? "selected" : ""}>${escapeHtml(r[field.refLabel])}</option>`).join("");
+    return `<select data-field="${field.key}">${opts}</select>`;
+  }
+  if (field.type === "select-ref-other") {
+    const rows = CACHE[field.refTable] || [];
+    let opts = `<option value="">${field.required ? "اختاري..." : "بدون"}</option>`;
+    opts += rows.map(r => `<option value="${r.id}" ${String(r.id) === String(v) ? "selected" : ""}>${escapeHtml(r[field.refLabel])}</option>`).join("");
+    opts += `<option value="other">أخرى - اكتبي اسم العميل في الملاحظات تحت</option>`;
     return `<select data-field="${field.key}">${opts}</select>`;
   }
   if (field.type === "textarea") {
@@ -1008,10 +1015,12 @@ function openGenericModal(moduleKey, existingRow, onSaved, fieldOverrides) {
     let valid = true;
     mod.fields.forEach(f => {
       const inputEl = fieldsEl.querySelector(`[data-field="${f.key}"]`);
-      let val = inputEl.value;
+      const rawVal = inputEl.value;
+      let val = rawVal;
+      if (f.required && rawVal === "") valid = false;
       if (f.type === "number") val = val === "" ? null : Number(val);
       if (f.type === "select-ref") val = val === "" ? null : Number(val);
-      if (f.required && (val === "" || val === null)) valid = false;
+      if (f.type === "select-ref-other") val = (val === "" || val === "other") ? null : Number(val);
       row[f.key] = val;
     });
     if (!valid) { showToast("فيه حقول مطلوبة لسه فاضية"); return; }
@@ -2197,7 +2206,7 @@ async function renderPaymentsTab(main) {
     </div>
 
     <div class="card">
-      <h3>إيرادات إضافية خارج التعاقد <button class="btn small" onclick="openGenericModal('extra_revenue', null, ()=>refreshAndRender('payments'))">+ إيراد إضافي جديد</button></h3>
+      <h3>إيرادات إضافية خارج التعاقد <button class="btn small" onclick="openGenericModal('extra_revenue', null, ()=>refreshAndRender('extra_revenue'))">+ إيراد إضافي جديد</button></h3>
       <div class="desc" style="margin-bottom:10px">أي فلوس من عميل بره القيمة الشهرية الثابتة - يوم تصوير زيادة، إيفنت، أو خدمة إضافية. دي بتتجمع مع الإيرادات الأساسية في حساب صافي الربح، بس متتحسبش جزء من "المستحق الشهري" بتاع العقد فوق</div>
       <div id="extra-revenue-kpi" style="margin-bottom:14px"></div>
       <div class="table-wrap" id="extra-revenue-table"></div>
@@ -2255,7 +2264,7 @@ function renderPaymentsOverview() {
 }
 function renderExtraRevenueTable() {
   const month = document.getElementById("payments-month")?.value || currentMonthStr();
-  const clientName = id => (CACHE.clients.find(c => c.id === id) || {}).name || "-";
+  const clientName = id => id ? escapeHtml((CACHE.clients.find(c => c.id === id) || {}).name || "-") : '<span class="badge grey">أخرى - شوفي الملاحظات</span>';
   const monthRows = CACHE.extra_revenue.filter(e => e.billing_month === month);
   const monthTotal = monthRows.reduce((s, e) => s + (Number(e.amount) || 0), 0);
   document.getElementById("extra-revenue-kpi").innerHTML =
@@ -2267,7 +2276,7 @@ function renderExtraRevenueTable() {
     <thead><tr><th>العميل</th><th>النوع</th><th>الوصف</th><th>الشهر</th><th>تاريخ الاستلام</th><th>المبلغ</th><th>طريقة الدفع</th><th></th></tr></thead>
     <tbody>${rows.map(r => `
       <tr>
-        <td><b>${escapeHtml(clientName(r.client_id))}</b></td>
+        <td><b>${clientName(r.client_id)}</b></td>
         <td>${escapeHtml(r.category || "-")}</td>
         <td>${escapeHtml(r.description)}${r.notes ? `<div style="font-size:11px;color:var(--grey)">${escapeHtml(r.notes)}</div>` : ""}</td>
         <td>${r.billing_month || "-"}</td>
@@ -2285,12 +2294,12 @@ function renderPaymentsLogTable() {
   const rows = [...CACHE.payments].sort((a, b) => (a.payment_date < b.payment_date ? 1 : -1));
   const el = document.getElementById("payments-log-table");
   if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش دفعات مسجّلة</td></tr></tbody></table>`; return; }
-  const clientName = id => (CACHE.clients.find(c => c.id === id) || {}).name || "-";
+  const clientName = id => id ? escapeHtml((CACHE.clients.find(c => c.id === id) || {}).name || "-") : '<span class="badge grey">أخرى - شوفي الملاحظات</span>';
   el.innerHTML = `<table>
     <thead><tr><th>العميل</th><th>الشهر المستحق عليه</th><th>تاريخ الدفعة</th><th>المبلغ</th><th>طريقة الدفع</th><th>ملاحظات</th><th></th></tr></thead>
     <tbody>${rows.map(r => `
       <tr>
-        <td><b>${escapeHtml(clientName(r.client_id))}</b></td>
+        <td><b>${clientName(r.client_id)}</b></td>
         <td>${r.billing_month || "-"}</td>
         <td>${r.payment_date || "-"}</td>
         <td style="color:var(--lime)">${fmtMoney(r.amount)}</td>
