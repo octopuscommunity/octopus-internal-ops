@@ -756,11 +756,11 @@ const ROLE_LABELS = {
 const ALL_TABS = [
   { key: "dashboard", label: "لوحة المتابعة", roles: ["admin"] },
   { key: "clients", label: "العملاء والاستراتيجيات", roles: ["admin"] },
-  { key: "my_attendance", label: "الحضور والانصراف", roles: ["team", "account_manager", "ops_manager"] },
+  { key: "my_attendance", label: "الحضور والانصراف", roles: ["admin", "team", "account_manager", "ops_manager"] },
   { key: "tasks", label: "التاسكات", roles: ["admin", "team", "account_manager", "ops_manager", "client"] },
-  { key: "my_leaves", label: "الإجازات", roles: ["team", "account_manager", "ops_manager"] },
-  { key: "my_overtime", label: "الأوفرتايم", roles: ["team", "account_manager", "ops_manager"] },
-  { key: "approvals", label: "الاعتمادات", roles: ["account_manager", "ops_manager"] },
+  { key: "my_leaves", label: "الإجازات", roles: ["admin", "team", "account_manager", "ops_manager"] },
+  { key: "my_overtime", label: "الأوفرتايم", roles: ["admin", "team", "account_manager", "ops_manager"] },
+  { key: "approvals", label: "الاعتمادات", roles: ["admin", "account_manager", "ops_manager"] },
   { key: "employees", label: "الموظفين", roles: ["admin"] },
   { key: "attendance", label: "الحضور والإجازات", roles: ["admin"] },
   { key: "payroll", label: "المرتبات", roles: ["admin"] },
@@ -1192,6 +1192,10 @@ async function refreshAndRender(table) {
   else if (activeTab === "dashboard") await renderDashboardTab(document.getElementById("main-content"));
   else if (activeTab === "payments") await renderPaymentsTab(document.getElementById("main-content"));
   else if (activeTab === "expenses") await renderExpensesTab(document.getElementById("main-content"));
+  else if (activeTab === "my_overtime") await renderMyOvertimeTab(document.getElementById("main-content"));
+  else if (activeTab === "my_attendance") await renderMyAttendanceTab(document.getElementById("main-content"));
+  else if (activeTab === "my_leaves") await renderMyLeavesTab(document.getElementById("main-content"));
+  else if (activeTab === "approvals") await renderApprovalsTab(document.getElementById("main-content"));
 }
 
 /* ============================================================
@@ -1599,7 +1603,7 @@ function reqHistoryHTML(r) {
 }
 function reqActionCellHTML(r, table) {
   if (CURRENT_ROLE === "admin") {
-    return `<button class="btn small danger" onclick="deleteRow('${table}', ${r.id}, ()=>switchTab(activeTab))">حذف</button>`;
+    return `<button class="btn small danger" onclick="deleteRow('${table}', ${r.id}, ()=>refreshAndRender('${table}'))">حذف</button>`;
   }
   if (CURRENT_ROLE === "account_manager" && r.status === "قيد المراجعة" && r.requested_by_role === "team") {
     return `<button class="btn small secondary" onclick='openReqDecisionModal(${jsAttr(r)}, "account_manager", "${table}")'>مراجعة</button>`;
@@ -1687,6 +1691,28 @@ function reqRoleHint(kind) {
 /* ============================================================
    تاب الأوفرتايم - مستقل
    ============================================================ */
+/* ============================================================
+   فلتر اسم الموظف - متاح في كل التابات الأربعة (أوفرتايم/حضور/إجازات/اعتمادات)
+   لكل الأدوار (تيم/أكونت مانجر/أوبريشن/أدمن) - كل واحد يقدر يفلتر باسمه أو باسم أي حد تاني
+   ============================================================ */
+function employeeFilterHTML(prefix) {
+  return `
+    <div class="filter-bar">
+      <select id="${prefix}-emp-filter">
+        <option value="">كل الموظفين</option>
+        ${CACHE.employees.map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`).join("")}
+      </select>
+    </div>`;
+}
+function wireEmployeeFilter(prefix, getRows, tableFn, tableElId) {
+  document.getElementById(`${prefix}-emp-filter`).onchange = () => {
+    const empVal = document.getElementById(`${prefix}-emp-filter`).value;
+    const rows = getRows();
+    const filtered = empVal ? rows.filter(r => String(r.employee_id) === empVal) : rows;
+    document.getElementById(tableElId).innerHTML = tableFn(filtered);
+  };
+}
+
 async function renderMyOvertimeTab(main) {
   const showForm = ["team", "account_manager"].includes(CURRENT_ROLE);
   main.innerHTML = `
@@ -1704,7 +1730,9 @@ async function renderMyOvertimeTab(main) {
       <div class="field"><label>سبب الأوفرتايم</label><textarea id="otr-reason" placeholder="مثلاً: تسليم عاجل لعميل، تصوير امتد لوقت متأخر..."></textarea></div>
       <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="otr-submit">إرسال طلب الأوفرتايم</button></div>
     </div>` : ""}
+    ${employeeFilterHTML("otv")}
     <div class="card"><div class="table-wrap" id="overtime-requests-table">${overtimeRequestsTableHTML(CACHE.overtime_requests)}</div></div>`;
+  wireEmployeeFilter("otv", () => CACHE.overtime_requests, overtimeRequestsTableHTML, "overtime-requests-table");
   if (showForm) {
     document.getElementById("otr-submit").onclick = async () => {
       const employeeId = Number(document.getElementById("otr-employee").value) || null;
@@ -1759,7 +1787,9 @@ async function renderMyAttendanceTab(main) {
       </div>
       <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="atr-submit">إرسال تسجيل الحضور</button></div>
     </div>` : ""}
+    ${employeeFilterHTML("atd")}
     <div class="card"><div class="table-wrap" id="attendance-requests-table">${attendanceRequestsTableHTML(CACHE.attendance_requests)}</div></div>`;
+  wireEmployeeFilter("atd", () => CACHE.attendance_requests, attendanceRequestsTableHTML, "attendance-requests-table");
   if (showForm) {
     document.getElementById("atr-submit").onclick = async () => {
       const employeeId = Number(document.getElementById("atr-employee").value) || null;
@@ -1812,7 +1842,9 @@ async function renderMyLeavesTab(main) {
       <div class="desc" style="margin-bottom:10px">إجازة بدون راتب - بتدخل في حساب المرتب بعد الاعتماد النهائي</div>
       <div class="modal-actions" style="margin-bottom:0"><button class="btn" id="lvr-submit">إرسال طلب الإجازة</button></div>
     </div>` : ""}
+    ${employeeFilterHTML("lvr")}
     <div class="card"><div class="table-wrap" id="leave-requests-table">${leaveRequestsTableHTML(CACHE.leave_requests)}</div></div>`;
+  wireEmployeeFilter("lvr", () => CACHE.leave_requests, leaveRequestsTableHTML, "leave-requests-table");
   if (showForm) {
     document.getElementById("lvr-submit").onclick = async () => {
       const employeeId = Number(document.getElementById("lvr-employee").value) || null;
@@ -1848,17 +1880,30 @@ function leaveRequestsTableHTML(rows) {
    ============================================================ */
 async function renderApprovalsTab(main) {
   await refreshCache(["overtime_requests", "attendance_requests", "leave_requests"]);
-  const pendingOt = CACHE.overtime_requests.filter(r => reqNeedsMyDecision(r));
-  const pendingAt = CACHE.attendance_requests.filter(r => reqNeedsMyDecision(r));
-  const pendingLv = CACHE.leave_requests.filter(r => reqNeedsMyDecision(r));
   main.innerHTML = `
     <div class="page-head"><div><h2>الاعتمادات</h2><div class="desc">كل الطلبات اللي محتاجة قرارك دلوقتي - أوفرتايم، حضور، وإجازات</div></div></div>
-    <h3 style="margin-bottom:10px">طلبات الأوفرتايم (${pendingOt.length})</h3>
-    <div class="card" style="margin-bottom:22px"><div class="table-wrap">${overtimeRequestsTableHTML(pendingOt)}</div></div>
-    <h3 style="margin-bottom:10px">طلبات الحضور والانصراف (${pendingAt.length})</h3>
-    <div class="card" style="margin-bottom:22px"><div class="table-wrap">${attendanceRequestsTableHTML(pendingAt)}</div></div>
-    <h3 style="margin-bottom:10px">طلبات الإجازة (${pendingLv.length})</h3>
-    <div class="card"><div class="table-wrap">${leaveRequestsTableHTML(pendingLv)}</div></div>`;
+    ${employeeFilterHTML("apr")}
+    <h3 style="margin-bottom:10px" id="apr-overtime-heading">طلبات الأوفرتايم</h3>
+    <div class="card" style="margin-bottom:22px"><div class="table-wrap" id="apr-overtime-table"></div></div>
+    <h3 style="margin-bottom:10px" id="apr-attendance-heading">طلبات الحضور والانصراف</h3>
+    <div class="card" style="margin-bottom:22px"><div class="table-wrap" id="apr-attendance-table"></div></div>
+    <h3 style="margin-bottom:10px" id="apr-leave-heading">طلبات الإجازة</h3>
+    <div class="card"><div class="table-wrap" id="apr-leave-table"></div></div>`;
+  renderApprovalsTables();
+  document.getElementById("apr-emp-filter").onchange = renderApprovalsTables;
+}
+function renderApprovalsTables() {
+  const empVal = document.getElementById("apr-emp-filter").value;
+  const filterByEmp = rows => empVal ? rows.filter(r => String(r.employee_id) === empVal) : rows;
+  const pendingOt = filterByEmp(CACHE.overtime_requests.filter(r => reqNeedsMyDecision(r)));
+  const pendingAt = filterByEmp(CACHE.attendance_requests.filter(r => reqNeedsMyDecision(r)));
+  const pendingLv = filterByEmp(CACHE.leave_requests.filter(r => reqNeedsMyDecision(r)));
+  document.getElementById("apr-overtime-heading").textContent = `طلبات الأوفرتايم (${pendingOt.length})`;
+  document.getElementById("apr-attendance-heading").textContent = `طلبات الحضور والانصراف (${pendingAt.length})`;
+  document.getElementById("apr-leave-heading").textContent = `طلبات الإجازة (${pendingLv.length})`;
+  document.getElementById("apr-overtime-table").innerHTML = overtimeRequestsTableHTML(pendingOt);
+  document.getElementById("apr-attendance-table").innerHTML = attendanceRequestsTableHTML(pendingAt);
+  document.getElementById("apr-leave-table").innerHTML = leaveRequestsTableHTML(pendingLv);
 }
 function reqNeedsMyDecision(r) {
   if (CURRENT_ROLE === "account_manager") return r.status === "قيد المراجعة" && r.requested_by_role === "team";
