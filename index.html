@@ -601,8 +601,8 @@ async function exportAllToExcel() {
   addSheet("التاسكات", CACHE.tasks.map(t => ({
     "ID": t.id, "عنوان التاسك": t.title, "التصنيف": t.category || "-",
     "العميل": clientName(t.client_id), "الاستراتيجية": strategyTitle(t.strategy_id),
-    "المسؤول": empName(t.assignee_id), "تاريخ التاسك": t.task_date, "تاريخ التسليم": t.due_date,
-    "الحالة": t.status, "الساعات المقدّرة": t.estimated_hours, "الساعات الفعلية": t.actual_hours,
+    "المسؤول": empName(t.assignee_id), "تاريخ التسليم": t.due_date,
+    "الحالة": t.status,
     "رابط الدرايف": t.drive_link || "", "رابط الاستراتيجية": t.strategy_link || "", "ملاحظات / التفاصيل": t.notes || ""
   })));
 
@@ -684,9 +684,8 @@ async function exportAllToExcel() {
   const payrollMonth = currentMonthStr();
   const payrollRows = computePayrollForMonth(payrollMonth);
   addSheet(`المرتبات - ${payrollMonth}`, payrollRows.map(p => ({
-    "الموظف": p.employee.name, "أيام الشغل في الشهر": p.workDays, "ساعات التاسكات الفعلية": p.taskHours,
-    "إضافي عادي (ساعة)": p.regularOvertimeHours, "إضافي يوم إجازة (ساعة)": p.offDayOvertimeHours,
-    "إضافي يدوي (ساعة)": p.manualOvertimeHours, "إجمالي قيمة الإضافي": p.overtimePay,
+    "الموظف": p.employee.name, "أيام الشغل في الشهر": p.workDays,
+    "إضافي يدوي معتمد (ساعة)": p.manualOvertimeHours, "إجمالي قيمة الإضافي": p.overtimePay,
     "أيام غياب": p.absenceDays, "خصم الغياب": p.absenceDeduction,
     "أيام إجازة بدون راتب": p.unpaidLeaveDays, "خصم الإجازة": p.unpaidDeduction,
     "صافي المرتب": p.netPay
@@ -919,11 +918,8 @@ const MODULES = {
       { key: "client_id", label: "العميل (اختياري - سيبيها فاضية لو تاسك عام)", type: "select-ref", refTable: "clients", refLabel: "name" },
       { key: "strategy_id", label: "الاستراتيجية (اختياري)", type: "select-ref", refTable: "strategies", refLabel: "title" },
       { key: "assignee_id", label: "المسؤول (اختياري)", type: "select-ref", refTable: "employees", refLabel: "name" },
-      { key: "task_date", label: "تاريخ التاسك", type: "date" },
       { key: "due_date", label: "تاريخ التسليم", type: "date" },
       { key: "status", label: "الحالة", type: "select", options: TASK_STATUS_FLOW, default: "لم يبدأ" },
-      { key: "estimated_hours", label: "الساعات المقدّرة", type: "number" },
-      { key: "actual_hours", label: "الساعات الفعلية المنفقة", type: "number" },
       { key: "drive_link", label: "رابط الدرايف (الفولدر/الملف اللي هيشتغلوا عليه)", type: "text" },
       { key: "strategy_link", label: "رابط الاستراتيجية (مستند الخطة الكاملة)", type: "text" },
       { key: "notes", label: "ملاحظات", type: "textarea" }
@@ -1289,9 +1285,9 @@ function renderStrategyTasksZone() {
    ============================================================ */
 function tasksTableHTML(tasks) {
   if (!tasks.length) return `<table><tbody><tr class="empty-row"><td>لسه مفيش بنود</td></tr></tbody></table>`;
-  const sorted = [...tasks].sort((a, b) => (a.task_date > b.task_date ? 1 : -1));
+  const sorted = [...tasks].sort((a, b) => (a.due_date > b.due_date ? 1 : -1));
   return `<table>
-    <thead><tr><th>التاسك</th><th>التصنيف</th><th>العميل</th><th>المسؤول</th><th>التاريخ</th><th>التسليم</th><th>مقدّر</th><th>فعلي</th><th>الحالة</th><th></th></tr></thead>
+    <thead><tr><th>التاسك</th><th>التصنيف</th><th>العميل</th><th>المسؤول</th><th>التسليم</th><th>الحالة</th><th></th></tr></thead>
     <tbody>${sorted.map(t => {
       const client = CACHE.clients.find(c => c.id === t.client_id);
       return `<tr>
@@ -1299,10 +1295,7 @@ function tasksTableHTML(tasks) {
         <td>${t.category ? `<span class="badge grey">${escapeHtml(t.category)}</span>` : "-"}</td>
         <td>${client ? escapeHtml(client.name) : '<span class="badge grey">عام</span>'}</td>
         <td>${escapeHtml(empName(t.assignee_id))}</td>
-        <td>${t.task_date || "-"}</td>
         <td>${t.due_date || "-"}</td>
-        <td>${fmtHours(t.estimated_hours)}</td>
-        <td>${fmtHours(t.actual_hours)}</td>
         <td>${statusBadge(t.status)}</td>
         <td>${taskActionCellHTML(t)}</td>
       </tr>`;
@@ -1393,10 +1386,6 @@ function openTaskModal(task, mode) {
         <select id="tm-status">
           ${TEAM_ALLOWED_STATUSES.map(s => `<option value="${s}" ${s === task.status ? "selected" : ""}>${s}</option>`).join("")}
         </select>
-      </div>
-      <div class="field">
-        <label>الساعات الفعلية المنفقة</label>
-        <input type="number" id="tm-hours" value="${task.actual_hours ?? 0}" step="0.5">
       </div>
       <div class="modal-actions">
         <button class="btn secondary" onclick="closeModal()">إغلاق</button>
@@ -1503,8 +1492,7 @@ function openTaskModal(task, mode) {
   if (mode === "team") {
     document.getElementById("tm-save").onclick = async () => {
       const newStatus = document.getElementById("tm-status").value;
-      const hours = Number(document.getElementById("tm-hours").value) || 0;
-      await dbUpdate("tasks", task.id, { status: newStatus, actual_hours: hours });
+      await dbUpdate("tasks", task.id, { status: newStatus });
       closeModal();
       showToast("تم الحفظ ✓");
       await refreshAndRender("tasks");
@@ -1568,7 +1556,7 @@ async function renderTasksTab(main) {
         <option value="">كل التصنيفات</option>
         ${TASK_CATEGORIES.map(c => `<option>${c}</option>`).join("")}
       </select>
-      <input type="month" id="flt-month" onchange="applyTaskFilters()" title="فلتر بالشهر (حسب تاريخ التاسك)">
+      <input type="month" id="flt-month" onchange="applyTaskFilters()" title="فلتر بالشهر (حسب تاريخ التسليم)">
       <button class="btn small secondary" onclick="document.getElementById('flt-month').value='';applyTaskFilters()">إلغاء فلتر الشهر</button>
     </div>
     <div class="card"><div class="table-wrap" id="tasks-table">${tasksTableHTML(CACHE.tasks)}</div></div>`;
@@ -1585,7 +1573,7 @@ function applyTaskFilters() {
   if (assigneeVal) rows = rows.filter(t => String(t.assignee_id) === assigneeVal);
   if (statusVal) rows = rows.filter(t => t.status === statusVal);
   if (categoryVal) rows = rows.filter(t => t.category === categoryVal);
-  if (monthVal) rows = rows.filter(t => inMonth(t.task_date, monthVal));
+  if (monthVal) rows = rows.filter(t => inMonth(t.due_date, monthVal));
   document.getElementById("tasks-table").innerHTML = tasksTableHTML(rows);
 }
 
@@ -1936,28 +1924,12 @@ function computePayrollForMonth(monthStr) {
     const hourlyRate = expectedMonthlyHours > 0 ? (Number(emp.basic_salary) || 0) / expectedMonthlyHours : 0;
     const dailyRate = workDays > 0 ? (Number(emp.basic_salary) || 0) / workDays : 0;
 
-    // نجمع ساعات التاسكات الفعلية لكل يوم على حدة عشان نعرف هل اليوم ده كان يوم إجازته الأسبوعية ولا يوم شغل عادي
-    const hoursByDate = {};
-    CACHE.tasks.filter(t => t.assignee_id === emp.id && inMonth(t.task_date, monthStr)).forEach(t => {
-      hoursByDate[t.task_date] = (hoursByDate[t.task_date] || 0) + (Number(t.actual_hours) || 0);
-    });
-    let taskHours = 0, regularOvertimeHours = 0, offDayOvertimeHours = 0;
-    Object.entries(hoursByDate).forEach(([dateStr, hrs]) => {
-      taskHours += hrs;
-      if (isEmployeeOffDate(emp, dateStr)) {
-        offDayOvertimeHours += hrs; // أي ساعة شغل في يوم إجازته الأسبوعية = إضافي ×2 بالكامل
-      } else if (hrs > stdDaily) {
-        regularOvertimeHours += (hrs - stdDaily); // إضافي ×1.5 بس للساعات اللي زادت عن المعتمد في يوم شغل عادي
-      }
-    });
-    const overtimePayFromTasks = regularOvertimeHours * hourlyRate * 1.5 + offDayOvertimeHours * hourlyRate * 2;
-
-    // الوقت الإضافي اليدوي المسجّل في تاب الحضور والإجازات - بيتجمع مع إضافي التاسكات
+    // الوقت الإضافي اليدوي المعتمد بس (عبر طلبات الأوفرتايم) - هو المصدر الوحيد للإضافي في حساب المرتب
     const manualEntries = CACHE.overtime_log.filter(o => o.employee_id === emp.id && inMonth(o.work_date, monthStr));
     const manualOvertimeHours = manualEntries.reduce((sum, o) => sum + (Number(o.hours) || 0), 0);
     const manualOvertimePay = manualEntries.reduce((sum, o) => sum + (Number(o.hours) || 0) * hourlyRate * (Number(o.rate_multiplier) || 1.5), 0);
 
-    const overtimePay = overtimePayFromTasks + manualOvertimePay;
+    const overtimePay = manualOvertimePay;
 
     const absenceDays = CACHE.attendance.filter(a => a.employee_id === emp.id && a.status === "غياب" && inMonth(a.work_date, monthStr)).length;
     const absenceDeduction = absenceDays * dailyRate;
@@ -1969,7 +1941,7 @@ function computePayrollForMonth(monthStr) {
 
     const netPay = (Number(emp.basic_salary) || 0) + overtimePay - absenceDeduction - unpaidDeduction;
     return {
-      employee: emp, workDays, taskHours, hourlyRate, regularOvertimeHours, offDayOvertimeHours,
+      employee: emp, workDays, hourlyRate,
       manualOvertimeHours, manualOvertimePay, overtimePay,
       absenceDays, absenceDeduction, unpaidLeaveDays, unpaidDeduction, netPay,
       hasWeeklyOffDefined: employeeOffDayNames(emp).length > 0
@@ -1978,24 +1950,20 @@ function computePayrollForMonth(monthStr) {
 }
 async function renderPayrollTab(main) {
   const month = currentMonthStr();
-  const noOffDayWarning = CACHE.employees.some(e => !employeeOffDayNames(e).length);
   main.innerHTML = `
     <div class="page-head">
-      <div><h2>المرتبات</h2><div class="desc">الإضافي بيُحسب تلقائيًا من الساعات الفعلية على التاسكات - بسعر ×1.5 في يوم الشغل العادي، و×2 لو الشغل كان في يوم الإجازة الأسبوعية</div></div>
+      <div><h2>المرتبات</h2><div class="desc">الإضافي بيدخل بس من طلبات الأوفرتايم المعتمدة (أوبريشن مانجر اعتماد نهائي) - مفيش حساب تلقائي من ساعات التاسكات</div></div>
     </div>
     <div class="filter-bar">
       <label style="color:var(--grey);font-size:13px">الشهر:</label>
       <input type="month" id="payroll-month" value="${month}" onchange="renderPayrollTable()">
     </div>
     <div class="card"><div class="table-wrap" id="payroll-table"></div></div>
-    ${noOffDayWarning ? `<div class="card" style="border-color:var(--yellow-tx);font-size:12.5px;color:var(--yellow-tx)">⚠ فيه موظف/ين بدون "إجازة أسبوعية" محددة في شيت الموظفين - من غيرها النظام ما يقدرش يميّز يوم إجازتهم، وهيتعامل مع كل أيامهم كأيام شغل عادية (إضافي ×1.5 بس مش ×2). حدّدي الإجازة الأسبوعية لكل موظف من شيت الموظفين عشان الحساب يكون دقيق 100%.</div>` : ""}
     <div class="card" style="font-size:12.5px;color:var(--grey)">
       <b style="color:var(--white)">طريقة الحساب:</b><br>
       أيام الشغل الفعلية في الشهر = كل أيام الشهر التقويمية ناقص أيام إجازته الأسبوعية الحقيقية (مش رقم ثابت). ساعات العمل المتوقعة = الساعات اليومية المعتمدة × أيام الشغل دي.<br>
       سعر الساعة = الراتب الأساسي ÷ ساعات العمل المتوقعة.<br>
-      <b style="color:var(--white)">إضافي يوم عادي (×1.5):</b> لو سجّل ساعات في يوم شغل عادي أكتر من الساعات المعتمدة، الزيادة بس بتحسب إضافي.<br>
-      <b style="color:var(--white)">إضافي يوم الإجازة (×2):</b> لو سجّل ساعات في يوم إجازته الأسبوعية نفسه، كل الساعات دي (مش بس الزيادة) بتحسب إضافي بسعر مضاعف، لأنه أصلاً مكانش متوقع يشتغل فيه.<br>
-      <b style="color:var(--white)">إضافي يدوي:</b> أي وقت إضافي تسجّليه إنتِ بنفسك في تاب "الحضور والإجازات" (بسعر ×1.5 أو ×2 حسب اختيارك) بيتجمع تلقائي هنا فوق إضافي التاسكات.<br>
+      <b style="color:var(--white)">الإضافي المعتمد:</b> بس الساعات اللي طلبها الموظف من تاب الأوفرتايم واتعمدت اعتماد نهائي (أكونت مانجر ثم أوبريشن مانجر) - بسعر ×1.5 افتراضيًا.<br>
       خصم الغياب وخصم الإجازة بدون راتب = عدد الأيام × (الراتب الأساسي ÷ أيام الشغل الفعلية في الشهر).<br>
       <b style="color:var(--yellow-tx)">تنبيه:</b> لو يوم مسجّل "غياب" وكمان مسجّل كإجازة بدون راتب في نفس الوقت هيتخصم مرتين غلط - استخدمي حالة "إجازة" في سجل الحضور لو في طلب إجازة معتمد.
     </div>`;
@@ -2008,16 +1976,13 @@ function renderPayrollTable() {
   if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش موظفين</td></tr></tbody></table>`; return; }
   let totalNet = 0, totalBasic = 0, totalOT = 0, totalDed = 0;
   el.innerHTML = `<table>
-    <thead><tr><th>الموظف</th><th>أيام شغله الفعلية</th><th>الراتب الأساسي</th><th>ساعات التاسكات</th><th>إضافي عادي (×1.5)</th><th>إضافي يوم إجازته (×2)</th><th>إضافي يدوي</th><th>قيمة الإضافي</th><th>أيام غياب</th><th>خصم غياب</th><th>إجازة بدون راتب</th><th>خصم إجازة</th><th>صافي المستحق</th></tr></thead>
+    <thead><tr><th>الموظف</th><th>أيام شغله الفعلية</th><th>الراتب الأساسي</th><th>إضافي معتمد (ساعة)</th><th>قيمة الإضافي</th><th>أيام غياب</th><th>خصم غياب</th><th>إجازة بدون راتب</th><th>خصم إجازة</th><th>صافي المستحق</th></tr></thead>
     <tbody>${rows.map(r => {
       totalNet += r.netPay; totalBasic += Number(r.employee.basic_salary) || 0; totalOT += r.overtimePay; totalDed += r.absenceDeduction + r.unpaidDeduction;
       return `<tr>
         <td><b>${escapeHtml(r.employee.name)}</b>${!r.hasWeeklyOffDefined ? ' <span class="badge yellow">بدون إجازة محددة</span>' : ""}</td>
         <td>${r.workDays} يوم</td>
         <td>${fmtMoney(r.employee.basic_salary)}</td>
-        <td>${fmtHours(r.taskHours)}</td>
-        <td>${fmtHours(r.regularOvertimeHours)}</td>
-        <td>${fmtHours(r.offDayOvertimeHours)}</td>
         <td>${fmtHours(r.manualOvertimeHours)}</td>
         <td style="color:var(--lime)">${fmtMoney(r.overtimePay)}</td>
         <td>${r.absenceDays}</td>
@@ -2027,7 +1992,7 @@ function renderPayrollTable() {
         <td style="font-weight:800;color:var(--lime)">${fmtMoney(r.netPay)}</td>
       </tr>`;
     }).join("")}
-    <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td></td><td><b>${fmtMoney(totalBasic)}</b></td><td></td><td></td><td></td><td></td><td><b>${fmtMoney(totalOT)}</b></td><td></td><td><b>${fmtMoney(totalDed)}</b></td><td></td><td></td><td><b style="font-size:15px">${fmtMoney(totalNet)}</b></td></tr>
+    <tr style="border-top:2px solid var(--border)"><td><b>الإجمالي</b></td><td></td><td><b>${fmtMoney(totalBasic)}</b></td><td></td><td><b>${fmtMoney(totalOT)}</b></td><td></td><td><b>${fmtMoney(totalDed)}</b></td><td></td><td></td><td><b style="font-size:15px">${fmtMoney(totalNet)}</b></td></tr>
     </tbody></table>`;
 }
 
@@ -2043,9 +2008,6 @@ function computeEmployeeKPIs(monthStr) {
     const withDue = completedThisMonth.filter(t => t.due_date);
     const onTimeCount = withDue.filter(t => t.completed_at.slice(0, 10) <= t.due_date).length;
     const onTimePct = withDue.length ? Math.round((onTimeCount / withDue.length) * 100) : null;
-    const totalEstimated = completedThisMonth.reduce((s, t) => s + (Number(t.estimated_hours) || 0), 0);
-    const totalActual = completedThisMonth.reduce((s, t) => s + (Number(t.actual_hours) || 0), 0);
-    const efficiencyPct = totalEstimated > 0 ? Math.round((totalActual / totalEstimated) * 100) : null;
     const monthAttendance = CACHE.attendance.filter(a => a.employee_id === emp.id && inMonth(a.work_date, monthStr));
     const absences = monthAttendance.filter(a => a.status === "غياب").length;
     const lateDays = monthAttendance.filter(a => a.status === "متأخر").length;
@@ -2053,17 +2015,17 @@ function computeEmployeeKPIs(monthStr) {
     let overall, overallColor;
     if (completedCount === 0 && absences === 0 && lateDays === 0) { overall = "لا توجد بيانات كافية"; overallColor = "grey"; }
     else if ((onTimePct !== null && onTimePct < 50) || absences >= 3) { overall = "يحتاج انتباه"; overallColor = "red"; }
-    else if ((onTimePct === null || onTimePct >= 80) && (efficiencyPct === null || (efficiencyPct >= 70 && efficiencyPct <= 130)) && absences === 0 && lateDays <= 1) { overall = "ممتاز"; overallColor = "green"; }
+    else if ((onTimePct === null || onTimePct >= 80) && absences === 0 && lateDays <= 1) { overall = "ممتاز"; overallColor = "green"; }
     else { overall = "جيد"; overallColor = "yellow"; }
 
-    return { emp, completedCount, onTimePct, efficiencyPct, absences, lateDays, overall, overallColor };
+    return { emp, completedCount, onTimePct, absences, lateDays, overall, overallColor };
   });
 }
 async function renderKpisTab(main) {
   const month = currentMonthStr();
   main.innerHTML = `
     <div class="page-head">
-      <div><h2>تقييم الموظفين</h2><div class="desc">% في الميعاد بيُحسب من تاريخ إقفال التاسك الفعلي (completed_at) مقابل تاريخ التسليم - مش تخمين. كفاءة الوقت = الساعات الفعلية ÷ المقدّرة للتاسكات المكتملة. التقييم العام مؤشر سريع بس مبني على قواعد ثابتة، استخدميه كنقطة بداية للمراجعة مش كحكم نهائي</div></div>
+      <div><h2>تقييم الموظفين</h2><div class="desc">% في الميعاد بيُحسب من تاريخ إقفال التاسك الفعلي (completed_at) مقابل تاريخ التسليم - مش تخمين. التقييم العام مؤشر سريع بس مبني على قواعد ثابتة، استخدميه كنقطة بداية للمراجعة مش كحكم نهائي</div></div>
     </div>
     <div class="filter-bar">
       <label style="color:var(--grey);font-size:13px">الشهر:</label>
@@ -2078,13 +2040,12 @@ function renderKpisTable() {
   const el = document.getElementById("kpis-table");
   if (!rows.length) { el.innerHTML = `<table><tbody><tr class="empty-row"><td>لسه مفيش موظفين</td></tr></tbody></table>`; return; }
   el.innerHTML = `<table>
-    <thead><tr><th>الموظف</th><th>تاسكات منجزة هذا الشهر</th><th>% في الميعاد</th><th>كفاءة الوقت (فعلي/مقدّر)</th><th>أيام غياب</th><th>أيام تأخير</th><th>التقييم العام</th></tr></thead>
+    <thead><tr><th>الموظف</th><th>تاسكات منجزة هذا الشهر</th><th>% في الميعاد</th><th>أيام غياب</th><th>أيام تأخير</th><th>التقييم العام</th></tr></thead>
     <tbody>${rows.map(r => `
       <tr>
         <td><b>${escapeHtml(r.emp.name)}</b></td>
         <td>${r.completedCount}</td>
         <td>${r.onTimePct === null ? "-" : `<span style="color:${r.onTimePct >= 80 ? "var(--lime)" : r.onTimePct >= 50 ? "var(--yellow-tx)" : "var(--red-tx)"}">${r.onTimePct}%</span>`}</td>
-        <td>${r.efficiencyPct === null ? "-" : `${r.efficiencyPct}%`}</td>
         <td style="color:${r.absences > 0 ? "var(--red-tx)" : "var(--grey)"}">${r.absences}</td>
         <td style="color:${r.lateDays > 0 ? "var(--yellow-tx)" : "var(--grey)"}">${r.lateDays}</td>
         <td><span class="badge ${r.overallColor}">${r.overall}</span></td>
